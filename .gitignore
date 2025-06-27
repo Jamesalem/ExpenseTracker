@@ -1,14 +1,22 @@
 # Gradle
 .gradle/
 build/
-/app/build/
-# Local config
-local.properties
+!gradle/wrapper/gradle-wrapper.jar
+
 # Android Studio
 .idea/
 *.iml
-# Keystore
-*.jks
-# OS files
+*.hprof
+
+# Kotlin
+*.kotlin_module
+
+# Local config
+local.properties
+
+# Built APKs / outputs
+*/build/
+*/captures/
+
+# Misc
 .DS_Store
-Thumbs.db

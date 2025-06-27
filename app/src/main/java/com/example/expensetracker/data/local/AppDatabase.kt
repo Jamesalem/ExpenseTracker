@@ -4,7 +4,11 @@ import android.content.Context
 import androidx.room.*
 import com.example.expensetracker.data.model.Expense
 
-@Database(entities = [Expense::class], version = 1, exportSchema = false)
+@Database(
+    entities = [Expense::class],
+    version = 2,      // bump to 2 because of the new currencyCode field
+    exportSchema = false
+)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun expenseDao(): ExpenseDao
@@ -18,7 +22,11 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "expense_tracker_db"
-                ).build().also { INSTANCE = it }
+                )
+                    // simple fallback for dev—wipe & rebuild on schema change
+                    .fallbackToDestructiveMigration()
+                    .build()
+                    .also { INSTANCE = it }
             }
     }
 }
