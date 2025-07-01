@@ -23,8 +23,9 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "expense_tracker_db"
                 )
-                    // simple fallback for dev—wipe & rebuild on schema change
-                    .fallbackToDestructiveMigration()
+                    // simple fallback for dev—wipe & rebuild on schema change,
+                    // dropping *all* tables (recommended true)
+                    .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                     .also { INSTANCE = it }
             }

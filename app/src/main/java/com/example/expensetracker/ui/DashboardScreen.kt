@@ -9,7 +9,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.expensetracker.data.viewmodel.ExpenseViewModel
 import com.github.mikephil.charting.charts.PieChart
 import com.github.mikephil.charting.data.PieData
@@ -22,7 +22,7 @@ import java.util.*
 @Composable
 fun DashboardScreen(
     navController: NavController,
-    vm: ExpenseViewModel = viewModel()
+    vm: ExpenseViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val expenses by vm.expenses.collectAsState()

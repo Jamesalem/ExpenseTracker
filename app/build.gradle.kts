@@ -5,7 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     kotlin("kapt")
-    id("com.google.dagger.hilt.android") // plugin applied here
+    id("com.google.dagger.hilt.android")
 }
 
 android {
@@ -45,29 +45,42 @@ android {
     }
 
     composeOptions {
+        // Keep this matched to your Compose BOM version
         kotlinCompilerExtensionVersion = "1.5.13"
     }
 
-    // Optional workaround
+    // Hilt workaround if needed
     hilt {
         enableAggregatingTask = false
     }
 }
 
 dependencies {
-    // Compose BOM + AndroidX
+    // Core + Lifecycle
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
+
+    // Compose BOM & UI
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
-    implementation(libs.androidx.material3)
 
-    // Hilt 2.56.1 (plugin & lib must match)
+    // Material 3 (via BOM and explicit where needed)
+    implementation(libs.androidx.material3)
+    implementation("androidx.compose.material3:material3:1.1.0")
+    implementation("androidx.compose.material3:material3-window-size-class:1.1.0")
+
+    // Material Icons Extended (provides PieChart, BarChart, etc.)
+    implementation("androidx.compose.material:material-icons-extended")
+
+    // Hilt (core)
     implementation("com.google.dagger:hilt-android:2.56.1")
     kapt("com.google.dagger:hilt-android-compiler:2.56.1")
+
+    // Hilt + Compose Navigation
+    implementation("androidx.hilt:hilt-navigation-compose:1.0.0")
 
     // Room
     implementation("androidx.room:room-runtime:2.7.2")
@@ -77,14 +90,17 @@ dependencies {
     // Navigation
     implementation("androidx.navigation:navigation-compose:2.7.2")
 
-    // ViewModel
+    // ViewModel in Compose
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
 
-    // Coil
+    // Coil for images
     implementation("io.coil-kt:coil-compose:2.1.0")
 
-    // Charts
+    // Charts (MPAndroidChart)
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
+
+    // DataStore Preferences
+    implementation("androidx.datastore:datastore-preferences:1.1.0")
 
     // Testing
     testImplementation(libs.junit)
@@ -93,7 +109,7 @@ dependencies {
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
 
-    // Debug tools
+    // Debug
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 }

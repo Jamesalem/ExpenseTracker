@@ -1,37 +1,32 @@
 package com.example.expensetracker.data.viewmodel
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.expensetracker.data.local.AppDatabase
 import com.example.expensetracker.data.model.Expense
 import com.example.expensetracker.data.repository.ExpenseRepository
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.util.Date
+import javax.inject.Inject
 
-class ExpenseViewModel(app: Application) : AndroidViewModel(app) {
-    private val dao = AppDatabase.getInstance(app).expenseDao()
-    private val repo = ExpenseRepository(dao)
+@HiltViewModel
+class ExpenseViewModel @Inject constructor(
+    private val repo: ExpenseRepository
+) : ViewModel() {
+    val expenses: StateFlow<List<Expense>> =
+        repo.getAll()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** All expenses as StateFlow */
-    val expenses: StateFlow<List<Expense>> = repo.getAll()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    /** Single expense by ID */
     fun getExpenseById(id: Long): StateFlow<Expense?> =
         repo.getById(id)
-            .stateIn(viewModelScope,
-                SharingStarted.Lazily,
-                initialValue = null)
+            .map { it }
+            .stateIn(viewModelScope, SharingStarted.Lazily, null)
 
-    /** Add a new expense (with currency) */
+    /** Now takes `dateMillis: Long` */
     fun addExpense(
         amount: Double,
         currencyCode: String,
-        date: Date,
+        dateMillis: Long,
         category: String,
         note: String? = null,
         receiptUri: String? = null
@@ -39,7 +34,7 @@ class ExpenseViewModel(app: Application) : AndroidViewModel(app) {
         val e = Expense(
             amount = amount,
             currencyCode = currencyCode,
-            date = date.time,
+            date = dateMillis,
             category = category,
             note = note,
             receiptUri = receiptUri
@@ -47,12 +42,10 @@ class ExpenseViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { repo.add(e) }
     }
 
-    /** Update an existing expense */
     fun updateExpense(expense: Expense) {
         viewModelScope.launch { repo.update(expense) }
     }
 
-    /** Delete */
     fun deleteExpense(expense: Expense) {
         viewModelScope.launch { repo.delete(expense) }
     }
