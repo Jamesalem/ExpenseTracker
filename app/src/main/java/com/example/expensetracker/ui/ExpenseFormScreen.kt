@@ -1,7 +1,6 @@
 package com.example.expensetracker.ui
 
 import android.app.DatePickerDialog
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -28,12 +27,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -44,38 +42,46 @@ import com.example.expensetracker.data.viewmodel.ExpenseViewModel
 import com.example.expensetracker.data.viewmodel.SettingsViewModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExpenseFormScreen(
     navController: NavController
 ) {
-    val vm: ExpenseViewModel = hiltViewModel()
+    val expenseVm: ExpenseViewModel = hiltViewModel()
     val settingsVm: SettingsViewModel = hiltViewModel()
     val defaultCurrency by settingsVm.defaultCurrency.collectAsState()
 
+    // Initialize form state
+    LaunchedEffect(Unit) {
+        expenseVm.initForm()
+        expenseVm.updateFormCurrencyCode(defaultCurrency)
+    }
+
+    // Get form state from ViewModel
+    val amountState = expenseVm.formAmount
+    val currencyCodeState = expenseVm.formCurrencyCode
+    val categoryState = expenseVm.formCategory
+    val noteState = expenseVm.formNote
+
     val context = LocalContext.current
     val calendar = remember { Calendar.getInstance() }
-    val scrollState = rememberScrollState()
-
-    // Form state
-    var amountText by rememberSaveable { mutableStateOf("") }
-    var currencyCode by rememberSaveable { mutableStateOf(defaultCurrency) }
-    var category by rememberSaveable { mutableStateOf("") }
-    var note by rememberSaveable { mutableStateOf("") }
-    var date by rememberSaveable { mutableStateOf(calendar.time) }
+    val dateState = remember { mutableStateOf(Date()) }
 
     // Date picker dialog
-    val datePicker = DatePickerDialog(
-        context, { _, y, m, d ->
-            calendar.set(y, m, d)
-            date = calendar.time
-        },
-        calendar.get(Calendar.YEAR),
-        calendar.get(Calendar.MONTH),
-        calendar.get(Calendar.DAY_OF_MONTH)
-    )
+    val datePicker = remember {
+        DatePickerDialog(
+            context, { _, y, m, d ->
+                calendar.set(y, m, d)
+                dateState.value = calendar.time
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -83,78 +89,72 @@ fun ExpenseFormScreen(
                 title = { Text("New Expense") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
                 },
                 actions = {
                     IconButton(onClick = { navController.navigate("settings") }) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        Icon(Icons.Default.Settings, "Settings")
                     }
                 }
             )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = {
-                val amt = amountText.toDoubleOrNull() ?: 0.0
-                vm.addExpense(
-                    amount = amt,
-                    currencyCode = currencyCode,
-                    dateMillis = date.time,
-                    category = category.ifBlank { "Misc" },
-                    note = note.ifBlank { null },
-                    receiptUri = null
-                )
+                expenseVm.addExpense(dateState.value.time)
                 navController.popBackStack()
             }) {
-                Icon(Icons.Default.Add, contentDescription = "Save Expense")
+                Icon(Icons.Default.Add, "Save Expense")
             }
         }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(scrollState)
+                .verticalScroll(rememberScrollState())
                 .systemBarsPadding()
                 .imePadding()
                 .padding(padding)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Amount
+            // Amount field - fixed to use value from state
             TextField(
-                value = amountText,
-                onValueChange = { amountText = it },
+                value = amountState.value.toString(),
+                onValueChange = { newValue ->
+                    expenseVm.updateFormAmount(newValue.toDoubleOrNull() ?: 0.0)
+                },
                 label = { Text("Amount") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Currency picker
+            // Currency picker - fixed to use state value
             CurrencyPicker(
-                currencyCode = currencyCode,
-                onCurrencySelected = { newCode -> currencyCode = newCode },
+                currencyCode = currencyCodeState.value,
+                onCurrencySelected = { expenseVm.updateFormCurrencyCode(it) },
                 modifier = Modifier.fillMaxWidth()
             )
 
             // Date picker button
             Button(onClick = { datePicker.show() }) {
-                Text(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(date))
+                Text(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(dateState.value))
             }
 
-            // Category
+            // Category - fixed to use state value
             TextField(
-                value = category,
-                onValueChange = { category = it },
+                value = categoryState.value,
+                onValueChange = { expenseVm.updateFormCategory(it) },
                 label = { Text("Category") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Note
+            // Note - fixed to use state value
             TextField(
-                value = note,
-                onValueChange = { note = it },
+                value = noteState.value,
+                onValueChange = { expenseVm.updateFormNote(it) },
                 label = { Text("Note (optional)") },
                 modifier = Modifier
                     .fillMaxWidth()

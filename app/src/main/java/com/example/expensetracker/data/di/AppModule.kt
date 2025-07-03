@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
+import androidx.room.Room
+import com.example.expensetracker.data.dao.BudgetDao
 import com.example.expensetracker.data.local.AppDatabase
 import com.example.expensetracker.data.local.ExpenseDao
 import com.example.expensetracker.data.repository.ExpenseRepository
@@ -15,7 +17,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
-// 1) Define the DataStore<Preferences> extension on Context
+// 1) Your DataStore<Preferences> extension
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
     name = "user_preferences"
 )
@@ -24,25 +26,51 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
 @InstallIn(SingletonComponent::class)
 object AppModule {
 
-    @Provides @Singleton
+    // 2) Provide the Room database (with both Expense & Budget tables)
+    @Provides
+    @Singleton
     fun provideDatabase(@ApplicationContext ctx: Context): AppDatabase =
-        AppDatabase.getInstance(ctx)
+        Room.databaseBuilder(
+            ctx,
+            AppDatabase::class.java,
+            "expense_tracker_db"
+        )
+            // use the new overload; `true` means drop all tables on migration
+            .fallbackToDestructiveMigration(dropAllTables = true)
+            .build()
 
-    @Provides @Singleton
+    // 3) Expose both DAOs
+    @Provides
+    @Singleton
     fun provideExpenseDao(db: AppDatabase): ExpenseDao =
         db.expenseDao()
 
-    @Provides @Singleton
-    fun provideExpenseRepository(dao: ExpenseDao): ExpenseRepository =
-        ExpenseRepository(dao)
+    @Provides
+    @Singleton
+    fun provideBudgetDao(db: AppDatabase): BudgetDao =
+        db.budgetDao()
 
-    // 2) Provide the DataStore<Preferences> so Hilt knows how to inject it
-    @Provides @Singleton
-    fun providePreferencesDataStore(@ApplicationContext ctx: Context): DataStore<Preferences> =
+    // 4) Wire up the repository with both DAOs
+    @Provides
+    @Singleton
+    fun provideExpenseRepository(
+        expenseDao: ExpenseDao,
+        budgetDao: BudgetDao
+    ): ExpenseRepository =
+        ExpenseRepository(expenseDao, budgetDao)
+
+    // 5) Your existing DataStore and SettingsRepo providers
+    @Provides
+    @Singleton
+    fun providePreferencesDataStore(
+        @ApplicationContext ctx: Context
+    ): DataStore<Preferences> =
         ctx.dataStore
 
-    // 3) Now provide SettingsRepository using that DataStore
-    @Provides @Singleton
-    fun provideSettingsRepo(dataStore: DataStore<Preferences>): SettingsRepository =
+    @Provides
+    @Singleton
+    fun provideSettingsRepo(
+        dataStore: DataStore<Preferences>
+    ): SettingsRepository =
         SettingsRepository(dataStore)
 }

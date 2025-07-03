@@ -1,6 +1,6 @@
 package com.example.expensetracker.ui
 
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -17,7 +17,7 @@ import androidx.compose.ui.Modifier
 import com.example.expensetracker.data.util.CurrencyFormatter
 import com.example.expensetracker.data.util.CurrencyLists
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CurrencyPicker(
     currencyCode: String,
@@ -26,8 +26,7 @@ fun CurrencyPicker(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    // popular + rest
-    val allCodes = remember {
+    val allCodes = remember(CurrencyLists.popularCodes) {
         val pop = CurrencyLists.popularCodes
         val rest = CurrencyFormatter.currencyCodes
             .filterNot { it in pop }
@@ -37,17 +36,21 @@ fun CurrencyPicker(
 
     ExposedDropdownMenuBox(
         expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
+        onExpandedChange = { expanded = it },
         modifier = modifier
     ) {
         TextField(
             value = currencyCode,
-            onValueChange = { /* read‑only */ },
+            onValueChange = { /* readOnly */ },
             readOnly = true,
             label = { Text("Currency") },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            modifier = Modifier.fillMaxWidth()
+            colors = ExposedDropdownMenuDefaults.textFieldColors(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = true }  // Explicit click handling
         )
+
         ExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
