@@ -14,18 +14,21 @@ class InitialDataPopulator @Inject constructor(
 ) {
     @WorkerThread
     suspend fun populateInitialData() {
-        // Default categories
-        val defaultCategories = listOf(
-            Category(name = "Food", isCustom = false),
-            Category(name = "Transport", isCustom = false),
-            Category(name = "Housing", isCustom = false),
-            Category(name = "Utilities", isCustom = false),
-            Category(name = "Healthcare", isCustom = false),
-            Category(name = "Entertainment", isCustom = false),
-            Category(name = "Shopping", isCustom = false),
-            Category(name = "Education", isCustom = false)
-        )
-        defaultCategories.forEach { categoryDao.insert(it) }
+        // Only insert default categories if the category table is empty
+        // This prevents re-inserting on subsequent app launches after initial setup
+        if (categoryDao.countCategories() == 0) { // NEW: Check if categories exist
+            val defaultCategories = listOf(
+                Category(name = "Food", isCustom = false),
+                Category(name = "Transport", isCustom = false),
+                Category(name = "Housing", isCustom = false),
+                Category(name = "Utilities", isCustom = false),
+                Category(name = "Healthcare", isCustom = false),
+                Category(name = "Entertainment", isCustom = false),
+                Category(name = "Shopping", isCustom = false),
+                Category(name = "Education", isCustom = false)
+            )
+            defaultCategories.forEach { categoryDao.insert(it) }
+        }
 
         // Default settings if none exist
         if (settingsDao.getSettings() == null) {

@@ -87,7 +87,8 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
-    implementation(libs.places)
+    // *** TEMPORARILY COMMENTED OUT: Places SDK ***
+    // implementation(libs.places)
     coreLibraryDesugaring(libs.desugarJdkLibs)
 
     implementation(platform(libs.androidx.compose.bom))

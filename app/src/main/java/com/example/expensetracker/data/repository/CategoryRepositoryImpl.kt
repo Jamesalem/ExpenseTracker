@@ -1,4 +1,3 @@
-// data/repository/CategoryRepositoryImpl.kt
 package com.example.expensetracker.data.repository
 
 import com.example.expensetracker.data.dao.CategoryDao
@@ -15,8 +14,9 @@ class CategoryRepositoryImpl @Inject constructor(
     override fun getAllCategories(): Flow<List<Category>> =
         dao.getAllCategories()
 
-    override suspend fun getCategoryById(id: Long): Category? =
-        dao.getCategoryById(id)
+    // *** IMPORTANT FIX: Changed to call dao.getCategory ***
+    override fun getCategory(id: Long): Flow<Category> = // Changed from getCategoryById
+        dao.getCategory(id)
 
     override suspend fun insertCategory(category: Category): Long =
         dao.insert(category)
