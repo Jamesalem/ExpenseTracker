@@ -1,130 +1,169 @@
+// data/viewmodel/ExpenseViewModel.kt
 package com.example.expensetracker.data.viewmodel
 
-import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.expensetracker.data.model.Budget
+import com.example.expensetracker.data.model.AppSettings
 import com.example.expensetracker.data.model.Expense
 import com.example.expensetracker.data.repository.ExpenseRepository
+import com.example.expensetracker.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.ZoneId
+import java.util.Date
 import javax.inject.Inject
 
 @HiltViewModel
 class ExpenseViewModel @Inject constructor(
-    private val repo: ExpenseRepository
+    private val expenseRepo: ExpenseRepository,
+    private val settingsRepo: SettingsRepository
 ) : ViewModel() {
 
-    // ——— Existing Expenses ————————————————————————
-    val expenses: StateFlow<List<Expense>> =
-        repo.getAll()
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    // Expose raw expenses stream for lists
+    val expenses: Flow<List<Expense>> = expenseRepo.observeAllExpenses()
+    fun getExpenseById(id: Long): Flow<Expense?> = expenseRepo.observeExpenseById(id)
 
-    // Changed to return Flow instead of StateFlow
-    fun getExpenseById(id: Long): Flow<Expense?> = repo.getById(id)
-
-    // Form state - properly exposed as State objects
-    private val _formAmount = mutableStateOf(0.0)
-    val formAmount: State<Double> = _formAmount
-
-    private val _formCurrencyCode = mutableStateOf("USD")
-    val formCurrencyCode: State<String> = _formCurrencyCode
-
-    private val _formCategory = mutableStateOf("")
-    val formCategory: State<String> = _formCategory
-
-    private val _formNote = mutableStateOf("")
-    val formNote: State<String> = _formNote
-
-    private val _formReceiptUri = mutableStateOf<String?>(null)
-    val formReceiptUri: State<String?> = _formReceiptUri
-
-    // Initialize form with default values
-    fun initForm() {
-        _formAmount.value = 0.0
-        _formCurrencyCode.value = "USD"
-        _formCategory.value = ""
-        _formNote.value = ""
-        _formReceiptUri.value = null
+    // Expose UI state
+    sealed class ExpenseUiState {
+        object Loading : ExpenseUiState()
+        data class Success(
+            val expenses: List<Expense>,
+            val settings: AppSettings
+        ) : ExpenseUiState()
+        data class Error(val message: String) : ExpenseUiState()
     }
 
-    // Initialize form with existing expense values
-    fun initForm(expense: Expense) {
-        _formAmount.value = expense.amount
-        _formCurrencyCode.value = expense.currencyCode
-        _formCategory.value = expense.category
-        _formNote.value = expense.note ?: ""
-        _formReceiptUri.value = expense.receiptUri
+    private val _uiState = MutableStateFlow<ExpenseUiState>(ExpenseUiState.Loading)
+    val uiState: StateFlow<ExpenseUiState> = _uiState.asStateFlow()
+
+    // Form state
+    data class ExpenseFormState(
+        val id: Long = 0,
+        val amount: Double = 0.0,
+        val currencyCode: String = "USD",
+        val category: String = "",
+        val note: String = "",
+        val type: Expense.ExpenseType = Expense.ExpenseType.EXPENSE,
+        val date: Date = Date()
+    )
+
+    private val _formState = MutableStateFlow(ExpenseFormState())
+    val formState: StateFlow<ExpenseFormState> = _formState.asStateFlow()
+
+    private val _isEditing = MutableStateFlow(false)
+    val isEditing: StateFlow<Boolean> = _isEditing.asStateFlow()
+
+    init {
+        loadData()
     }
 
-    fun updateFormAmount(amount: Double) {
-        _formAmount.value = amount
-    }
-
-    fun updateFormCurrencyCode(currencyCode: String) {
-        _formCurrencyCode.value = currencyCode
-    }
-
-    fun updateFormCategory(category: String) {
-        _formCategory.value = category
-    }
-
-    fun updateFormNote(note: String) {
-        _formNote.value = note
-    }
-
-    fun updateFormReceiptUri(uri: String?) {
-        _formReceiptUri.value = uri
-    }
-
-    // Add expense using form state
-    fun addExpense(dateMillis: Long) {
-        val e = Expense(
-            amount = _formAmount.value,
-            currencyCode = _formCurrencyCode.value,
-            date = dateMillis,
-            category = _formCategory.value,
-            note = _formNote.value.takeIf { it.isNotBlank() },
-            receiptUri = _formReceiptUri.value
-        )
-        viewModelScope.launch { repo.add(e) }
-    }
-
-    // Update expense using form state
-    fun updateExpense(id: Long) {
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun loadData() {
         viewModelScope.launch {
-            repo.getById(id).collect { expense ->
-                expense.let {
-                    val updated = it.copy(
-                        amount = _formAmount.value,
-                        currencyCode = _formCurrencyCode.value,
-                        category = _formCategory.value,
-                        note = _formNote.value.takeIf { text -> text.isNotBlank() },
-                        receiptUri = _formReceiptUri.value
-                    )
-                    repo.update(updated)
+            settingsRepo.appSettings
+                .flatMapLatest { settings ->
+                    expenseRepo.observeAllExpenses()
+                        .map { expenses -> ExpenseUiState.Success(expenses, settings) }
                 }
-            }
+                .catch { e ->
+                    _uiState.value = ExpenseUiState.Error(
+                        "Error loading expenses: ${e.message ?: "Unknown error"}"
+                    )
+                }
+                .collect { state ->
+                    _uiState.value = state
+
+                    // initialize form currency on first load
+                    if (_formState.value.currencyCode == "USD") {
+                        _formState.value = _formState.value.copy(
+                            currencyCode = state.settings.defaultCurrency
+                        )
+                    }
+                }
+        }
+    }
+
+    fun initForm() {
+        _isEditing.value = false
+        val defaultCurrency =
+            (uiState.value as? ExpenseUiState.Success)?.settings?.defaultCurrency ?: "USD"
+        _formState.value = ExpenseFormState(currencyCode = defaultCurrency)
+    }
+
+    fun initForm(expense: Expense) {
+        _isEditing.value = true
+        _formState.value = ExpenseFormState(
+            id = expense.id,
+            amount = expense.amount,
+            currencyCode = expense.currencyCode,
+            category = expense.category,
+            note = expense.note.orEmpty(),
+            type = expense.type,
+            // convert LocalDate → Date for the form
+            date = Date.from(expense.date.atStartOfDay(ZoneId.systemDefault()).toInstant())
+        )
+    }
+
+    fun updateFormAmount(amount: Double) =
+        _formState.update { it.copy(amount = amount) }
+
+    fun updateFormCurrencyCode(currencyCode: String) =
+        _formState.update { it.copy(currencyCode = currencyCode) }
+
+    fun updateFormDate(date: Date) =
+        _formState.update { it.copy(date = date) }
+
+    fun updateFormCategory(category: String) =
+        _formState.update { it.copy(category = category) }
+
+    fun updateFormNote(note: String) =
+        _formState.update { it.copy(note = note) }
+
+    fun updateFormType(type: Expense.ExpenseType) =
+        _formState.update { it.copy(type = type) }
+
+    fun submitExpense() {
+        val form = _formState.value
+        val localDate = form.date.toInstant()
+            .atZone(ZoneId.systemDefault())
+            .toLocalDate()
+
+        val expense = Expense(
+            id = if (_isEditing.value) form.id else 0L,
+            title = form.category,
+            amount = form.amount,
+            date = localDate,
+            category = form.category,
+            note = form.note.ifBlank { null },
+            type = form.type,
+            currencyCode = form.currencyCode
+        )
+
+        viewModelScope.launch {
+            try {
+                if (_isEditing.value) {
+                    expenseRepo.updateExpense(expense)
+                } else {
+                    expenseRepo.insertExpense(expense)
+                }
+            } catch (_: Exception) { /* handle error */ }
         }
     }
 
     fun deleteExpense(expense: Expense) {
-        viewModelScope.launch { repo.delete(expense) }
-    }
-
-    // ——— Budgets ———————————————————————————
-    private val _budgets: Flow<List<Budget>> = repo.observeBudgets()
-    val budgets: StateFlow<List<Budget>> = _budgets
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    fun upsertBudget(periodKey: String, amount: Double) {
         viewModelScope.launch {
-            repo.upsertBudget(Budget(periodKey = periodKey, amount = amount))
+            try {
+                expenseRepo.deleteExpense(expense)
+            } catch (_: Exception) { /* handle error */ }
         }
     }
 }

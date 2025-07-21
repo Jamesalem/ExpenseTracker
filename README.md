@@ -1,6 +1,6 @@
 # ExpenseTracker
 
-A simple Android expense-tracking app built with:
+A modern Android expense-tracking app built with:
 
 - **Jetpack Compose** for UI
 - **Room** for local persistence

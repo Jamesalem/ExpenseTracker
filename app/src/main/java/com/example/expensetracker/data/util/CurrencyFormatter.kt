@@ -1,39 +1,45 @@
 package com.example.expensetracker.data.util
 
 import java.text.NumberFormat
-import java.util.*
+import java.util.Currency
 
-object CurrencyFormatter {
+object CurrencyFormatter { // Changed to object for singleton pattern
+    private const val DEFAULT_DECIMAL_PLACES = 2
+    private const val DEFAULT_USE_GROUPING = true
 
-    /**
-     * Find a Locale whose default Currency matches the code,
-     * or fall back to Locale.getDefault() if none found.
-     */
-    private fun localeFor(currencyCode: String): Locale {
-        return Locale.getAvailableLocales()
-            .firstOrNull {
-                runCatching {
-                    Currency.getInstance(it).currencyCode == currencyCode
-                }.getOrDefault(false)
-            }
-            ?: Locale.getDefault()
+    fun format(amount: Double, currencyCode: String): String {
+        return format(amount, currencyCode, DEFAULT_DECIMAL_PLACES, DEFAULT_USE_GROUPING)
     }
 
-    /** All available ISO 4217 codes, sorted alphabetically */
-    val currencyCodes: List<String> = Currency
-        .getAvailableCurrencies()
-        .map(Currency::getCurrencyCode)
-        .sorted()
+    fun format(amount: Double, currencyCode: String, decimalPlaces: Int, useGrouping: Boolean): String {
+        val currency = try {
+            Currency.getInstance(currencyCode)
+        } catch (e: Exception) {
+            Currency.getInstance("USD")
+        }
 
-    /** Format an amount according to the code’s locale rules */
-    fun format(amount: Double, currencyCode: String): String {
-        val currency = runCatching { Currency.getInstance(currencyCode) }
-            .getOrNull()
-            ?: Currency.getInstance("USD")
+        val format = NumberFormat.getCurrencyInstance().apply {
+            this.currency = currency
+            maximumFractionDigits = decimalPlaces
+            minimumFractionDigits = decimalPlaces
+            isGroupingUsed = useGrouping
+        }
+        return format.format(amount)
+    }
 
-        val locale = localeFor(currency.currencyCode)
-        val nf = NumberFormat.getCurrencyInstance(locale)
-        nf.currency = currency
-        return nf.format(amount)
+    fun getSymbol(currencyCode: String): String {
+        return try {
+            Currency.getInstance(currencyCode).symbol
+        } catch (e: Exception) {
+            currencyCode
+        }
+    }
+
+    fun getDisplayName(currencyCode: String): String {
+        return try {
+            Currency.getInstance(currencyCode).displayName
+        } catch (e: Exception) {
+            currencyCode
+        }
     }
 }

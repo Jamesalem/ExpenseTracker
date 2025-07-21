@@ -1,38 +1,33 @@
+// data/local/AppDatabase.kt
 package com.example.expensetracker.data.local
 
-import android.content.Context
 import androidx.room.Database
-import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.example.expensetracker.data.dao.BudgetDao
+import com.example.expensetracker.data.dao.CategoryDao
+import com.example.expensetracker.data.dao.ExpenseDao
+import com.example.expensetracker.data.dao.SettingsDao
+import com.example.expensetracker.data.model.AppSettings
 import com.example.expensetracker.data.model.Budget
+import com.example.expensetracker.data.model.Category
 import com.example.expensetracker.data.model.Expense
 
 @Database(
-    entities = [Expense::class, Budget::class],
-    version = 3,              // bumped from 2 → 3 for the new Budget table
-    exportSchema = false
+    entities = [
+        Expense::class,
+        Budget::class,
+        Category::class,
+        AppSettings::class
+    ],
+    // *** IMPORTANT CHANGE: Increment database version ***
+    version = 7,
+    exportSchema = true
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun expenseDao(): ExpenseDao
     abstract fun budgetDao(): BudgetDao
-
-    companion object {
-        @Volatile private var INSTANCE: AppDatabase? = null
-
-        fun getInstance(context: Context): AppDatabase =
-            INSTANCE ?: synchronized(this) {
-                Room.databaseBuilder(
-                    context.applicationContext,
-                    AppDatabase::class.java,
-                    "expense_tracker_db"
-                )
-                    // wipe & rebuild on any schema change (dev-friendly)
-                    .fallbackToDestructiveMigration(dropAllTables = true)
-                    .build()
-                    .also { INSTANCE = it }
-            }
-    }
+    abstract fun categoryDao(): CategoryDao
+    abstract fun settingsDao(): SettingsDao
 }

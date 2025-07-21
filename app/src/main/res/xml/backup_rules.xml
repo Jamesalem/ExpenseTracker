@@ -1,13 +1,31 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
--->
+<?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
     <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+      Expense Tracker Backup Rules
+
+      ✅ Goal:
+      - Backup only non-sensitive configuration (e.g., safe user preferences)
+      - Exclude all user-sensitive or financial data
+      - Improve user privacy & comply with data regulations (e.g., GDPR, CCPA)
+
+      ✏ How:
+      - Only include specific files you trust to backup
+      - Avoid including full databases or all shared preferences
+    -->
+
+    <!-- ✅ Include only safe shared preferences -->
+    <include domain="sharedpref" path="app_preferences.xml" />
+
+    <!-- ✅ Include files directory (by default) -->
+    <include domain="file" path="." />
+
+    <!-- ❌ Exclude sensitive folder inside files (e.g., generated financial reports) -->
+    <exclude domain="file" path="financial_reports/" />
+
+    <!--
+      ⚠ Note:
+      - We do NOT include the database domain → so no databases are backed up.
+      - We do NOT include all shared preferences → so sensitive prefs (e.g., login tokens) aren't backed up.
+      - We also skip cache by not including domain="root" or external files.
+    -->
 </full-backup-content>

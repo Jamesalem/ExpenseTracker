@@ -1,19 +1,28 @@
+// Expense.kt
 package com.example.expensetracker.data.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
+import java.time.LocalDate
 
-/**
- * amount is always stored in the smallest unit (e.g. decimals allowed),
- * currencyCode is the ISO 4217 code (USD, EUR, NGN, etc.)
- */
 @Entity(tableName = "expenses")
+@Serializable
 data class Expense(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0L,
+
+    val title: String,
     val amount: Double,
-    val currencyCode: String = "USD",
-    val date: Long,         // epoch millis
+
+    @Serializable(with = LocalDateSerializer::class) // ← explicitly register your serializer
+    val date: LocalDate,
+
     val category: String,
     val note: String? = null,
-    val receiptUri: String? = null
-)
+    val type: ExpenseType = ExpenseType.EXPENSE,
+    val currencyCode: String
+) {
+    @Serializable
+    enum class ExpenseType { INCOME, EXPENSE }
+}

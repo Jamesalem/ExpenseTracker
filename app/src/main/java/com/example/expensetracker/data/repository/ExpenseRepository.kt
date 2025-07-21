@@ -1,26 +1,53 @@
+// data/repository/ExpenseRepository.kt
 package com.example.expensetracker.data.repository
 
-import com.example.expensetracker.data.dao.BudgetDao
-import com.example.expensetracker.data.local.ExpenseDao
-import com.example.expensetracker.data.model.Budget
+import com.example.expensetracker.data.dao.ExpenseDao
 import com.example.expensetracker.data.model.Expense
 import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class ExpenseRepository @Inject constructor(
-    private val expenseDao: ExpenseDao,
-    private val budgetDao: BudgetDao
+open class ExpenseRepository @Inject constructor(
+    protected val expenseDao: ExpenseDao
 ) {
-    // ——— Expense APIs ——————————————————————————
-    fun getAll(): Flow<List<Expense>> = expenseDao.getAllExpenses()
-    fun getById(id: Long): Flow<Expense>     = expenseDao.getExpenseById(id)
-    suspend fun add(expense: Expense): Long   = expenseDao.insert(expense)
-    suspend fun update(expense: Expense)      = expenseDao.update(expense)
-    suspend fun delete(expense: Expense)      = expenseDao.delete(expense)
+    /** Observers **/
+    open fun observeAllExpenses(): Flow<List<Expense>> =
+        expenseDao.observeAll()
 
-    // ——— Budget APIs ——————————————————————————
-    fun observeBudgets(): Flow<List<Budget>> = budgetDao.observeAll()
-    suspend fun upsertBudget(budget: Budget) = budgetDao.upsert(budget)
+    open fun observeExpensesBetweenDates(start: LocalDate, end: LocalDate): Flow<List<Expense>> =
+        expenseDao.observeBetweenDates(start, end)
+
+    open fun observeExpenseById(id: Long): Flow<Expense> =
+        expenseDao.observeById(id)
+
+    /** CRUD **/
+    open suspend fun getExpenseById(id: Long): Expense? =
+        expenseDao.getById(id)
+
+    open suspend fun insertExpense(expense: Expense): Long =
+        expenseDao.insert(expense)
+
+    open suspend fun updateExpense(expense: Expense) {
+        expenseDao.update(expense)
+    }
+
+    open suspend fun deleteExpense(expense: Expense) {
+        expenseDao.delete(expense)
+    }
+
+    open suspend fun deleteExpenseById(id: Long) {
+        expenseDao.deleteById(id)
+    }
+
+    /** Batch **/
+    open suspend fun getBetweenDates(start: LocalDate, end: LocalDate): List<Expense> =
+        expenseDao.getBetweenDates(start, end)
+
+    open suspend fun replaceAllExpenses(expenses: List<Expense>) =
+        expenseDao.replaceAllExpenses(expenses)
+
+    open suspend fun deleteAllExpenses() =
+        expenseDao.deleteAll()
 }

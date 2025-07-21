@@ -1,6 +1,9 @@
 package com.example.expensetracker.data.util
 
 object CurrencyLists {
-    /** A short list of the most‐common codes you want to surface first */
-    val popularCodes = listOf("USD", "EUR", "GBP", "NGN", "CAD", "AUD", "JPY", "CNY")
+    val popularCodes = setOf(
+        "USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CNY", "INR",
+        "MXN", "BRL", "RUB", "KRW", "SGD", "HKD", "NZD", "CHF",
+        "SEK", "NOK", "TRY", "ZAR", "THB", "DKK", "PLN", "IDR"
+    )
 }
