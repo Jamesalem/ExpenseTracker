@@ -7,11 +7,13 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager // NEW: Import PackageManager
 import android.os.Build
 import android.util.Pair
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat // NEW: Import ContextCompat
 import androidx.core.util.component1
 import androidx.core.util.component2
 import androidx.work.CoroutineWorker
@@ -44,6 +46,16 @@ class NotificationWorker @AssistedInject constructor(
 
             if (!settings.enableNotifications) return Result.success()
 
+            // NEW: Runtime permission check for notifications
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    // Permission not granted, cannot show notification. Fail gracefully.
+                    // Log this situation using your preferred logging solution.
+                    // Log.w("NotificationWorker", "Notification permission not granted. Skipping notification display.")
+                    return Result.failure()
+                }
+            }
+
             val today = LocalDate.now()
             val (startDate, endDate) = calculateDateRange(settings.budgetPeriod, today)
 
@@ -56,8 +68,9 @@ class NotificationWorker @AssistedInject constructor(
             showNotification(notificationMessage)
             Result.success()
         } catch (e: Exception) {
-            // Add proper error logging here
-            e.printStackTrace()
+            // NEW: Replace with proper error logging in production (e.g., Crashlytics)
+            // Log.e("NotificationWorker", "Error showing notification", e)
+            e.printStackTrace() // Keep for now, but replace for production
             Result.retry()
         }
     }

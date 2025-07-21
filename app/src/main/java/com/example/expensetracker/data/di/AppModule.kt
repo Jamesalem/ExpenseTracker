@@ -19,6 +19,7 @@ import com.example.expensetracker.data.local.Migration2to3
 import com.example.expensetracker.data.local.Migration3to4
 import com.example.expensetracker.data.local.Migration4to5
 import com.example.expensetracker.data.local.Migration5to6
+import com.example.expensetracker.data.local.Migration6to7 // NEW: Import the Migration6to7
 import com.example.expensetracker.data.repository.BudgetRepository
 import com.example.expensetracker.data.repository.BudgetRepositoryImpl
 import com.example.expensetracker.data.repository.CategoryRepository
@@ -51,12 +52,13 @@ object DatabaseModule {
             "expense_tracker_db"
         )
             .addMigrations(
-                Migration1to2, Migration2to3, Migration3to4, Migration4to5, Migration5to6
+                Migration1to2, Migration2to3, Migration3to4, Migration4to5, Migration5to6,
+                Migration6to7 // NEW: Add Migration6to7
             )
-            // *** IMPORTANT CHANGE: Added fallbackToDestructiveMigration() ***
+            // *** IMPORTANT CHANGE: Addressed deprecation by using explicit parameter ***
             // This will recreate the database if schema changes and no explicit migration is found.
             // Useful for development, but wipes user data.
-            .fallbackToDestructiveMigration()
+            .fallbackToDestructiveMigration(true) // Updated to specify 'true'
             // Removed .fallbackToDestructiveMigrationOnDowngrade(true) as fallbackToDestructiveMigration()
             // covers both upgrades and downgrades when a migration path is missing.
             .build()
@@ -71,13 +73,14 @@ object DatabaseModule {
 // 2️⃣ Repositories
 @Module
 @InstallIn(SingletonComponent::class)
+@Suppress("Unused") // Suppress 'unused' warning for Hilt-bound interfaces
 interface RepositoryModule {
 
     // @Binds tells Hilt: when someone asks for CategoryRepository, give CategoryRepositoryImpl
-    @Binds fun bindCategoryRepository(impl: CategoryRepositoryImpl): CategoryRepository
-    @Binds fun bindExpenseRepository(impl: ExpenseRepositoryImpl): ExpenseRepository
-    @Binds fun bindBudgetRepository(impl: BudgetRepositoryImpl): BudgetRepository
-    @Binds fun bindSettingsRepository(impl: SettingsRepositoryImpl): SettingsRepository
+    @Binds @Suppress("Unused") fun bindCategoryRepository(impl: CategoryRepositoryImpl): CategoryRepository
+    @Binds @Suppress("Unused") fun bindExpenseRepository(impl: ExpenseRepositoryImpl): ExpenseRepository
+    @Binds @Suppress("Unused") fun bindBudgetRepository(impl: BudgetRepositoryImpl): BudgetRepository
+    @Binds @Suppress("Unused") fun bindSettingsRepository(impl: SettingsRepositoryImpl): SettingsRepository
 }
 
 // 3️⃣ DataStore & WorkManager
