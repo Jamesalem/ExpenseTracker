@@ -82,3 +82,8 @@ val Migration5to6 = object : Migration(5, 6) {
         """.trimIndent())
     }
 }
+
+// NEW: No-op migration for version 6 to 7
+val Migration6to7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) { /* no schema change */ }
+}
