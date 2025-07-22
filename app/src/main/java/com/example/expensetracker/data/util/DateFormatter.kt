@@ -24,6 +24,17 @@ object DateFormatter {
         return getFormatter(pattern).format(localDate)
     }
 
+    // NEW: Re-introduced formatDate for LocalDate
+    fun formatDate(date: LocalDate, style: FormatStyle = FormatStyle.MEDIUM): String {
+        val pattern = when (style) {
+            FormatStyle.SHORT  -> "MMM dd"
+            FormatStyle.MEDIUM -> "MMM dd, yyyy"
+            FormatStyle.LONG   -> "MMMM dd, yyyy"
+            else               -> "MMM dd, yyyy"
+        }
+        return getFormatter(pattern).format(date)
+    }
+
     fun formatMonthYear(yearMonth: YearMonth): String =
         getFormatter("MMMM yyyy").format(yearMonth)
 

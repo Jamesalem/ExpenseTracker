@@ -1,4 +1,3 @@
-// ui/expense/ExpenseListScreen.kt
 package com.example.expensetracker.ui.expense
 
 import androidx.compose.foundation.background
@@ -25,16 +24,20 @@ import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator // NEW: Import CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost // NEW: Import SnackbarHost
+import androidx.compose.material3.SnackbarHostState // NEW: Import SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect // NEW: Import LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,7 +57,6 @@ import com.example.expensetracker.data.model.AppSettings
 import com.example.expensetracker.data.model.Expense
 import com.example.expensetracker.data.util.CurrencyFormatter
 import com.example.expensetracker.data.viewmodel.ExpenseViewModel
-import com.example.expensetracker.data.viewmodel.SettingsViewModel
 import com.example.expensetracker.ui.theme.Dimens
 import com.example.expensetracker.ui.theme.Shapes
 import com.example.expensetracker.ui.theme.generateCategoryColor
@@ -67,15 +69,23 @@ import java.util.Locale
 @Composable
 fun ExpenseListScreen(
     navController: NavController,
-    expenseVm: ExpenseViewModel = hiltViewModel(),
-    settingsVm: SettingsViewModel = hiltViewModel()
+    expenseVm: ExpenseViewModel = hiltViewModel()
 ) {
-    // 1) Collect the raw list
-    val expenses by expenseVm.expenses.collectAsState(initial = emptyList())
-    val settings by settingsVm.appSettings.collectAsState(initial = AppSettings())
+    // UPDATED: Collect combined uiState from ExpenseViewModel
+    val uiState by expenseVm.uiState.collectAsState()
+    val expenses = (uiState as? ExpenseViewModel.ExpenseUiState.Success)?.expenses.orEmpty()
+    val settings = (uiState as? ExpenseViewModel.ExpenseUiState.Success)?.settings ?: AppSettings()
 
     var toDelete by remember { mutableStateOf<Expense?>(null) }
     val dateFmt = remember { SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()) }
+    val snackbarHostState = remember { SnackbarHostState() } // NEW: Create SnackbarHostState
+
+    // NEW: Observe user messages for SnackBar
+    LaunchedEffect(expenseVm.userMessage) {
+        expenseVm.userMessage.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -102,57 +112,101 @@ fun ExpenseListScreen(
                     tint = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) } // NEW: Provide SnackbarHost
     ) { padding ->
         Box(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
         ) {
-            if (expenses.isEmpty()) {
-                Column(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        Icons.Filled.Inbox,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(Dimens.extraSmall))
-                    Text(
-                        stringResource(R.string.no_expenses_title),
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(Modifier.height(Dimens.small))
-                    Text(
-                        stringResource(R.string.no_expenses_message),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            when (uiState) { // UPDATED: Handle different UI states
+                is ExpenseViewModel.ExpenseUiState.Loading -> {
+                    Column(
+                        modifier = Modifier.align(Alignment.Center),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        CircularProgressIndicator()
+                        Spacer(Modifier.height(Dimens.extraSmall))
+                        Text(
+                            stringResource(R.string.loading), // Assuming you have a "loading" string resource
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(Dimens.medium),
-                    verticalArrangement = Arrangement.spacedBy(Dimens.small)
-                ) {
-                    items(
-                        items = expenses,
-                        key = { it.id }
-                    ) { exp ->
-                        ExpenseItem(
-                            expense = exp,
-                            decimalPlaces = settings.decimalPlaces,
-                            useGrouping = settings.useGroupingSeparator,
-                            dateFormatter = dateFmt,
-                            onDelete = { toDelete = exp },
-                            onClick = { navController.navigate("detail/${exp.id}") }
+                is ExpenseViewModel.ExpenseUiState.Success -> {
+                    if (expenses.isEmpty()) {
+                        Column(
+                            modifier = Modifier.align(Alignment.Center),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                Icons.Filled.Inbox,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(Dimens.extraSmall))
+                            Text(
+                                stringResource(R.string.no_expenses_title),
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Spacer(Modifier.height(Dimens.small))
+                            Text(
+                                stringResource(R.string.no_expenses_message),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(Dimens.medium),
+                            verticalArrangement = Arrangement.spacedBy(Dimens.small)
+                        ) {
+                            items(
+                                items = expenses,
+                                key = { it.id }
+                            ) { exp ->
+                                ExpenseItem(
+                                    expense = exp,
+                                    decimalPlaces = settings.decimalPlaces,
+                                    useGrouping = settings.useGroupingSeparator,
+                                    dateFormatter = dateFmt,
+                                    onDelete = { toDelete = exp },
+                                    onClick = { navController.navigate("detail/${exp.id}") }
+                                )
+                            }
+                        }
+                    }
+                }
+                is ExpenseViewModel.ExpenseUiState.Error -> {
+                    Column( // UPDATED: Show actual error message
+                        modifier = Modifier.align(Alignment.Center),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Filled.Inbox, // Using Inbox as a generic error icon for now
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(Modifier.height(Dimens.extraSmall))
+                        Text(
+                            (uiState as ExpenseViewModel.ExpenseUiState.Error).message, // Display actual error message
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.error // Use error color
+                        )
+                        Spacer(Modifier.height(Dimens.small))
+                        Text(
+                            stringResource(R.string.try_again_message), // Assuming you have a "try again" message
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
+
 
             toDelete?.let { exp ->
                 AlertDialog(

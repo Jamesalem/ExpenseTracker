@@ -1,4 +1,3 @@
-// data/viewmodel/ExpenseViewModel.kt
 package com.example.expensetracker.data.viewmodel
 
 import androidx.lifecycle.ViewModel
@@ -10,8 +9,11 @@ import com.example.expensetracker.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow // NEW: Import MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow // NEW: Import SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow // NEW: Import asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flatMapLatest
@@ -34,7 +36,7 @@ class ExpenseViewModel @Inject constructor(
 
     // Expose UI state
     sealed class ExpenseUiState {
-        object Loading : ExpenseUiState()
+        data object Loading : ExpenseUiState() // UPDATED: Changed to data object
         data class Success(
             val expenses: List<Expense>,
             val settings: AppSettings
@@ -44,6 +46,9 @@ class ExpenseViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow<ExpenseUiState>(ExpenseUiState.Loading)
     val uiState: StateFlow<ExpenseUiState> = _uiState.asStateFlow()
+
+    private val _userMessage = MutableSharedFlow<String>() // NEW: For one-time messages
+    val userMessage: SharedFlow<String> = _userMessage.asSharedFlow() // NEW: Expose as SharedFlow
 
     // Form state
     data class ExpenseFormState(
@@ -59,6 +64,7 @@ class ExpenseViewModel @Inject constructor(
     private val _formState = MutableStateFlow(ExpenseFormState())
     val formState: StateFlow<ExpenseFormState> = _formState.asStateFlow()
 
+    @Suppress("Unused") // ADDED: Suppress warning as it's used internally by submitExpense()
     private val _isEditing = MutableStateFlow(false)
     val isEditing: StateFlow<Boolean> = _isEditing.asStateFlow()
 
@@ -75,6 +81,8 @@ class ExpenseViewModel @Inject constructor(
                         .map { expenses -> ExpenseUiState.Success(expenses, settings) }
                 }
                 .catch { e ->
+                    // NEW: Replace with proper error logging in production
+                    // Log.e("ExpenseViewModel", "Error loading expenses", e)
                     _uiState.value = ExpenseUiState.Error(
                         "Error loading expenses: ${e.message ?: "Unknown error"}"
                     )
@@ -139,7 +147,7 @@ class ExpenseViewModel @Inject constructor(
 
         val expense = Expense(
             id = if (_isEditing.value) form.id else 0L,
-            title = form.category,
+            title = form.category, // Assuming title is derived from category
             amount = form.amount,
             date = localDate,
             category = form.category,
@@ -152,10 +160,16 @@ class ExpenseViewModel @Inject constructor(
             try {
                 if (_isEditing.value) {
                     expenseRepo.updateExpense(expense)
+                    _userMessage.emit("Expense updated successfully!") // NEW: Emit success message
                 } else {
                     expenseRepo.insertExpense(expense)
+                    _userMessage.emit("Expense added successfully!") // NEW: Emit success message
                 }
-            } catch (_: Exception) { /* handle error */ }
+            } catch (e: Exception) { // UPDATED: Catch and handle specific exceptions
+                // NEW: Replace with proper error logging in production
+                // Log.e("ExpenseViewModel", "Error submitting expense", e)
+                _userMessage.emit("Failed to save expense: ${e.message ?: "Unknown error"}") // NEW: Emit error message
+            }
         }
     }
 
@@ -163,7 +177,12 @@ class ExpenseViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 expenseRepo.deleteExpense(expense)
-            } catch (_: Exception) { /* handle error */ }
+                _userMessage.emit("Expense deleted successfully!") // NEW: Emit success message
+            } catch (e: Exception) { // UPDATED: Catch and handle specific exceptions
+                // NEW: Replace with proper error logging in production
+                // Log.e("ExpenseViewModel", "Error deleting expense", e)
+                _userMessage.emit("Failed to delete expense: ${e.message ?: "Unknown error"}") // NEW: Emit error message
+            }
         }
     }
 }

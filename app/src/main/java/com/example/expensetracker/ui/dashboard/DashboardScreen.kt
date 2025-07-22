@@ -1,4 +1,3 @@
-// ui/dashboard/DashboardScreen.kt
 package com.example.expensetracker.ui.dashboard
 
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -48,9 +48,7 @@ import com.example.expensetracker.R
 import com.example.expensetracker.data.model.AppSettings
 import com.example.expensetracker.data.model.Expense
 import com.example.expensetracker.data.util.CurrencyFormatter
-import com.example.expensetracker.data.viewmodel.BudgetViewModel
-import com.example.expensetracker.data.viewmodel.ExpenseViewModel
-import com.example.expensetracker.data.viewmodel.SettingsViewModel
+import com.example.expensetracker.data.viewmodel.DashboardViewModel
 import com.example.expensetracker.ui.budget.BudgetDialog
 import com.example.expensetracker.ui.components.cards.BudgetCard
 import com.example.expensetracker.ui.components.pickers.MonthPicker
@@ -63,26 +61,21 @@ import com.github.mikephil.charting.data.PieDataSet
 import com.github.mikephil.charting.data.PieEntry
 import com.github.mikephil.charting.formatter.PercentFormatter
 import java.time.YearMonth
-import java.time.ZoneId
-import java.util.Calendar
-import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     navController: NavController,
-    expenseViewModel: ExpenseViewModel = hiltViewModel(),
-    budgetViewModel: BudgetViewModel = hiltViewModel(),
-    settingsViewModel: SettingsViewModel = hiltViewModel()
+    dashboardViewModel: DashboardViewModel = hiltViewModel(), // UPDATED: Inject DashboardViewModel
 ) {
-    val expenses by expenseViewModel.expenses.collectAsState(emptyList())
-    val budgetsState by budgetViewModel.uiState.collectAsState()
-    val settings by settingsViewModel.appSettings.collectAsState(initial = AppSettings())
+    // UPDATED: Collect from the new centralized UI state
+    val uiState by dashboardViewModel.uiState.collectAsState()
 
-    // Extract the list of budgets when in Success state
-    val budgets = remember(budgetsState) {
-        (budgetsState as? BudgetViewModel.BudgetUiState.Success)?.budgets.orEmpty()
-    }
+    // Derived states from the Success UI state
+    val expenses = remember(uiState) { (uiState as? DashboardViewModel.DashboardUiState.Success)?.expenses.orEmpty() }
+    val budgets = remember(uiState) { (uiState as? DashboardViewModel.DashboardUiState.Success)?.budgets.orEmpty() }
+    val settings = remember(uiState) { (uiState as? DashboardViewModel.DashboardUiState.Success)?.settings ?: AppSettings() }
+
 
     // Month selector state
     var selectedYearMonth by remember { mutableStateOf(YearMonth.now()) }
@@ -93,14 +86,7 @@ fun DashboardScreen(
     // Filter this month's expenses
     val monthExpenses = remember(expenses, selectedYearMonth) {
         expenses.filter { exp ->
-            // Convert LocalDate to epoch millis, then to java.util.Date
-            val millis = exp.date
-                .atStartOfDay(ZoneId.systemDefault())
-                .toInstant()
-                .toEpochMilli()
-            val cal = Calendar.getInstance().apply { time = Date(millis) }
-            cal.get(Calendar.YEAR) == selectedYearMonth.year &&
-                    (cal.get(Calendar.MONTH) + 1) == selectedYearMonth.monthValue
+            YearMonth.from(exp.date) == selectedYearMonth
         }
     }
 
@@ -162,98 +148,127 @@ fun DashboardScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Budget summary card
-            BudgetCard(
-                budget = currentBudget,
-                totalSpent = totalSpent,
-                currencyCode = settings.defaultCurrency,
-                onEditClick = { showBudgetDialog = true },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // Spending summary row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                SummaryCard(
-                    title = stringResource(R.string.total_spent),
-                    value = CurrencyFormatter.format(totalSpent, settings.defaultCurrency),
-                    modifier = Modifier.weight(1f),
-                    backgroundColor = colorScheme.surfaceVariant
-                )
-
-                SummaryCard(
-                    title = stringResource(R.string.remaining),
-                    value = CurrencyFormatter.format(
-                        (currentBudget ?: 0.0) - totalSpent,
-                        settings.defaultCurrency
-                    ),
-                    modifier = Modifier.weight(1f),
-                    backgroundColor = colorScheme.surfaceVariant,
-                    valueColor = if ((currentBudget ?: 0.0) - totalSpent >= 0)
-                        colorScheme.primary else colorScheme.error
-                )
-            }
-
-            // Top categories breakdown
-            CategoryBreakdownCard(
-                spentByCategory = spentByCategory,
-                currencyCode = settings.defaultCurrency,
-                totalSpent = totalSpent,
-                onSeeMoreClick = { showCategoryInsights = true },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // Pie chart section
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(320.dp),
-                colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceVariant)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.spending_by_category),
-                        style = typography.titleMedium,
-                        color = colorScheme.onSurface
+            when (uiState) { // UPDATED: Centralized UI state handling
+                is DashboardViewModel.DashboardUiState.Loading -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp), // Adjust height as needed to fit loading indicator
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+                is DashboardViewModel.DashboardUiState.Error -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = (uiState as DashboardViewModel.DashboardUiState.Error).message,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+                is DashboardViewModel.DashboardUiState.Success -> {
+                    // All content dependent on loaded data
+                    // Budget summary card
+                    BudgetCard(
+                        budget = currentBudget,
+                        totalSpent = totalSpent,
+                        currencyCode = settings.defaultCurrency,
+                        onEditClick = { showBudgetDialog = true },
+                        modifier = Modifier.fillMaxWidth()
                     )
 
-                    if (spentByCategory.isNotEmpty()) {
-                        AndroidView(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(top = 8.dp),
-                            factory = { ctx ->
-                                createPieChart(
-                                    context = ctx,
-                                    entries = createPieEntries(spentByCategory),
-                                    colorScheme = colorScheme
-                                )
-                            },
-                            update = { chart ->
-                                chart.data = createPieData(
-                                    entries = createPieEntries(spentByCategory),
-                                    colorScheme = colorScheme
-                                )
-                                chart.invalidate()
-                            }
+                    // Spending summary row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        SummaryCard(
+                            title = stringResource(R.string.total_spent),
+                            value = CurrencyFormatter.format(totalSpent, settings.defaultCurrency),
+                            modifier = Modifier.weight(1f),
+                            backgroundColor = colorScheme.surfaceVariant
                         )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
+
+                        SummaryCard(
+                            title = stringResource(R.string.remaining),
+                            value = CurrencyFormatter.format(
+                                (currentBudget ?: 0.0) - totalSpent,
+                                settings.defaultCurrency
+                            ),
+                            modifier = Modifier.weight(1f),
+                            backgroundColor = colorScheme.surfaceVariant,
+                            valueColor = if ((currentBudget ?: 0.0) - totalSpent >= 0)
+                                colorScheme.primary else colorScheme.error
+                        )
+                    }
+
+                    // Top categories breakdown
+                    CategoryBreakdownCard(
+                        spentByCategory = spentByCategory,
+                        currencyCode = settings.defaultCurrency,
+                        totalSpent = totalSpent,
+                        onSeeMoreClick = { showCategoryInsights = true },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // Pie chart section
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(320.dp),
+                        colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceVariant)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                text = stringResource(R.string.no_expenses_this_month),
-                                style = typography.bodyMedium,
-                                color = colorScheme.onSurfaceVariant
+                                text = stringResource(R.string.spending_by_category),
+                                style = typography.titleMedium,
+                                color = colorScheme.onSurface
                             )
+
+                            if (spentByCategory.isNotEmpty()) {
+                                AndroidView(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(top = 8.dp),
+                                    factory = { ctx ->
+                                        createPieChart(
+                                            context = ctx,
+                                            entries = createPieEntries(spentByCategory),
+                                            colorScheme = colorScheme
+                                        )
+                                    },
+                                    update = { chart ->
+                                        chart.data = createPieData(
+                                            entries = createPieEntries(spentByCategory),
+                                            colorScheme = colorScheme
+                                        )
+                                        chart.invalidate()
+                                    }
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.no_expenses_this_month),
+                                        style = typography.bodyMedium,
+                                        color = colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -267,7 +282,7 @@ fun DashboardScreen(
             currentBudget = currentBudget,
             currencyCode = settings.defaultCurrency,
             onDismiss = { showBudgetDialog = false },
-            onSave = { amount -> budgetViewModel.saveBudget(periodKey, amount) }
+            onSave = { amount -> dashboardViewModel.saveBudget(periodKey, amount) } // UPDATED: Call DashboardViewModel
         )
     }
 

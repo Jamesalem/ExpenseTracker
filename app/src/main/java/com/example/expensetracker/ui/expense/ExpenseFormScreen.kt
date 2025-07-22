@@ -1,4 +1,3 @@
-// ui/expense/ExpenseFormScreen.kt
 package com.example.expensetracker.ui.expense
 
 import android.annotation.SuppressLint
@@ -32,9 +31,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost // NEW: Import SnackbarHost
+import androidx.compose.material3.SnackbarHostState // NEW: Import SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect // NEW: Import LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,6 +69,7 @@ fun ExpenseFormScreen(
     expenseVm: ExpenseViewModel = hiltViewModel()
 ) {
     val formState by expenseVm.formState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() } // NEW: Create SnackbarHostState
 
     val context = LocalContext.current
     val calendar = remember { Calendar.getInstance() }
@@ -85,6 +88,24 @@ fun ExpenseFormScreen(
             calendar.get(Calendar.DAY_OF_MONTH)
         )
     }
+
+    // NEW: Initialize form on first composition
+    LaunchedEffect(Unit) {
+        expenseVm.initForm()
+    }
+
+    // NEW: Observe user messages for SnackBar
+    LaunchedEffect(expenseVm.userMessage) {
+        expenseVm.userMessage.collect { message ->
+            snackbarHostState.showSnackbar(message)
+            // Navigate back only after a successful save message is shown
+            // Assuming successful messages implies it's safe to pop back
+            if (message.contains("successfully")) { // Simple check, refine if needed
+                navController.popBackStack()
+            }
+        }
+    }
+
 
     Scaffold(
         topBar = {
@@ -112,14 +133,15 @@ fun ExpenseFormScreen(
             ExtendedFloatingActionButton(
                 onClick = {
                     expenseVm.submitExpense()
-                    navController.popBackStack()
+                    // REMOVED: navController.popBackStack() is now handled in LaunchedEffect(expenseVm.userMessage)
                 },
                 icon = { Icon(Icons.Default.Add, stringResource(R.string.save_expense)) },
                 text = { Text(stringResource(R.string.save_expense)) },
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) } // NEW: Provide SnackbarHost
     ) { padding ->
         Column(
             modifier = Modifier

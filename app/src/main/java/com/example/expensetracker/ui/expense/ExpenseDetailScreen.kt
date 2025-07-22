@@ -1,4 +1,3 @@
-// ui/expense/ExpenseDetailScreen.kt
 package com.example.expensetracker.ui.expense
 
 import androidx.compose.foundation.layout.Arrangement
@@ -29,10 +28,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,8 +57,6 @@ import com.example.expensetracker.ui.theme.Shapes
 import com.example.expensetracker.ui.theme.Typography
 import com.example.expensetracker.ui.theme.extendedColors
 import com.example.expensetracker.ui.theme.generateCategoryColor
-import java.time.ZoneId
-import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +68,16 @@ fun ExpenseDetailScreen(
     val expense by vm.getExpenseById(expenseId).collectAsState(initial = null)
     var showDeleteDialog by remember { mutableStateOf(false) }
     val ext = MaterialTheme.extendedColors
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(vm.userMessage) {
+        vm.userMessage.collect { message ->
+            snackbarHostState.showSnackbar(message)
+            if (message.contains("successfully")) {
+                navController.popBackStack()
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -99,7 +109,8 @@ fun ExpenseDetailScreen(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { inner ->
         if (expense == null) {
             Box(
@@ -112,11 +123,11 @@ fun ExpenseDetailScreen(
             }
         } else {
             val e = expense!!
-            // Convert LocalDate -> Date for formatting
-            val date: Date = Date.from(
-                e.date.atStartOfDay(ZoneId.systemDefault()).toInstant()
-            )
-            val catColor = remember(e.id) { generateCategoryColor(e.id) }
+            // REMOVED: Unused 'date' variable
+            // val date: Date = Date.from(e.date.atStartOfDay(ZoneId.systemDefault()).toInstant())
+
+            // UPDATED: Use category hash code for color generation consistency
+            val catColor = remember(e.category) { generateCategoryColor(e.category.hashCode().toLong()) }
 
             Column(
                 modifier = Modifier
@@ -146,6 +157,7 @@ fun ExpenseDetailScreen(
                         )
                         Spacer(Modifier.height(Dimens.small))
                         Text(
+                            // UPDATED: Use the new CurrencyFormatter.format overload
                             CurrencyFormatter.format(e.amount, e.currencyCode),
                             style = Typography.displaySmall,
                             fontWeight = FontWeight.Bold,
@@ -164,8 +176,8 @@ fun ExpenseDetailScreen(
                 ) {
                     DetailItem(
                         label = stringResource(R.string.date),
-                        value = DateFormatter.toDisplay(date),
-                        icon = R.drawable.ic_calendar
+                        value = DateFormatter.formatDate(e.date), // Correctly uses LocalDate
+                        icon = R.drawable.ic_calendar_detail
                     )
                     DetailItem(
                         label = stringResource(R.string.currency),
@@ -181,7 +193,7 @@ fun ExpenseDetailScreen(
                         DetailItem(
                             label = stringResource(R.string.notes),
                             value = it,
-                            icon = R.drawable.ic_notes
+                            icon = R.drawable.ic_notes_detail
                         )
                     }
                 }
@@ -231,7 +243,7 @@ fun ExpenseDetailScreen(
             confirmButton = {
                 TextButton(onClick = {
                     vm.deleteExpense(expense!!)
-                    navController.popBackStack()
+                    showDeleteDialog = false
                 }) {
                     Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
                 }

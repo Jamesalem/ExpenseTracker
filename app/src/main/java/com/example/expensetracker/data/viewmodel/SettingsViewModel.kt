@@ -22,9 +22,12 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -51,9 +54,9 @@ class SettingsViewModel @Inject constructor(
         val jsonFormat = Json { prettyPrint = true }
     }
 
-    // Internal UI state, if you need it elsewhere
+    // Internal UI state for loading/error
     sealed class SettingsUiState {
-        object Loading : SettingsUiState()
+        data object Loading : SettingsUiState()
         data class Success(val settings: AppSettings) : SettingsUiState()
         data class Error(val message: String) : SettingsUiState()
     }
@@ -61,7 +64,7 @@ class SettingsViewModel @Inject constructor(
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
     private val _userMessage = MutableSharedFlow<String>()
-    val userMessage = _userMessage
+    val userMessage: SharedFlow<String> = _userMessage.asSharedFlow()
 
     private val _backupResult = MutableStateFlow<Pair<Boolean, Uri?>?>(null)
     val backupResult: StateFlow<Pair<Boolean, Uri?>?> = _backupResult.asStateFlow()
@@ -80,6 +83,8 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             settingsRepo.appSettings
                 .catch { e ->
+                    // Replace with proper error logging in production
+                    // Log.e("SettingsViewModel", "Error loading settings", e)
                     _uiState.value = SettingsUiState.Error(
                         "Error loading settings: ${e.message ?: "Unknown error"}"
                     )
@@ -90,57 +95,81 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private fun updateSettings(newSettings: AppSettings) {
-        viewModelScope.launch {
-            try {
-                settingsRepo.updateSettings(newSettings)
-                _userMessage.emit("Settings updated successfully")
-            } catch (e: Exception) {
-                _userMessage.emit("Failed to update settings: ${e.message ?: "Unknown error"}")
-            }
+    private suspend fun updateSettings(newSettings: AppSettings) { // UPDATED: Made suspend
+        try {
+            settingsRepo.updateSettings(newSettings)
+            _userMessage.emit("Settings updated successfully")
+        } catch (e: Exception) {
+            // Replace with proper error logging in production
+            // Log.e("SettingsViewModel", "Failed to update settings", e)
+            _userMessage.emit("Failed to update settings: ${e.message ?: "Unknown error"}")
         }
     }
 
-    fun setCurrency(currency: String) =
-        updateSettings(currentSettings().copy(defaultCurrency = currency))
+    // REMOVED: currentSettings() helper function is no longer needed
 
-    fun setBudget(amount: Double, period: BudgetPeriod) =
-        updateSettings(currentSettings().copy(budgetAmount = amount, budgetPeriod = period))
+    fun setCurrency(currency: String) = viewModelScope.launch { // UPDATED: Launched in VM scope
+        val current = appSettings.first() // Get latest settings
+        updateSettings(current.copy(defaultCurrency = currency))
+    }
 
-    fun setTheme(theme: ThemeMode) =
-        updateSettings(currentSettings().copy(themeMode = theme))
+    fun setDecimalPlaces(decimalPlaces: Int) = viewModelScope.launch { // UPDATED: Launched in VM scope
+        val current = appSettings.first()
+        updateSettings(current.copy(decimalPlaces = decimalPlaces))
+    }
 
-    fun setAutoBackup(enabled: Boolean, frequency: BackupFrequency) =
+    fun setGroupingSeparator(useGrouping: Boolean) = viewModelScope.launch { // UPDATED: Launched in VM scope
+        val current = appSettings.first()
+        updateSettings(current.copy(useGroupingSeparator = useGrouping))
+    }
+
+    fun setBudget(amount: Double, period: BudgetPeriod) = viewModelScope.launch { // UPDATED: Launched in VM scope
+        val current = appSettings.first()
+        updateSettings(current.copy(budgetAmount = amount, budgetPeriod = period))
+    }
+
+    fun setTheme(theme: ThemeMode) = viewModelScope.launch { // UPDATED: Launched in VM scope
+        val current = appSettings.first()
+        updateSettings(current.copy(themeMode = theme))
+    }
+
+    fun setAutoBackup(enabled: Boolean, frequency: BackupFrequency) = viewModelScope.launch { // UPDATED: Launched in VM scope
+        val current = appSettings.first()
         updateSettings(
-            currentSettings().copy(
+            current.copy(
                 autoBackupEnabled = enabled,
                 autoBackupFrequency = frequency
             )
         )
+    }
 
-    fun setSecurity(useLock: Boolean, pin: String? = null, useBiometrics: Boolean = false) =
+    fun setSecurity(useLock: Boolean, pin: String? = null, useBiometrics: Boolean = false) = viewModelScope.launch { // UPDATED: Launched in VM scope
+        val current = appSettings.first()
         updateSettings(
-            currentSettings().copy(
+            current.copy(
                 useAppLock = useLock,
                 appLockPin = pin,
                 useBiometrics = useBiometrics
             )
         )
+    }
 
-    fun updateCustomCategories(categories: List<String>) =
-        updateSettings(currentSettings().copy(customCategories = categories))
+    fun updateCustomCategories(categories: List<String>) = viewModelScope.launch { // UPDATED: Launched in VM scope
+        val current = appSettings.first()
+        updateSettings(current.copy(customCategories = categories))
+    }
 
     fun setNotifications(
         enabled: Boolean,
         time: String? = null,
         weeklyDay: DayOfWeek? = null
-    ) {
-        val base = currentSettings()
+    ) = viewModelScope.launch { // UPDATED: Launched in VM scope and made suspend
+        val base = appSettings.first() // Get latest settings
         updateSettings(
             base.copy(
                 enableNotifications = enabled,
-                notificationTime     = time ?: base.notificationTime,
-                weeklyReminderDay    = weeklyDay ?: base.weeklyReminderDay
+                notificationTime = time ?: base.notificationTime,
+                weeklyReminderDay = weeklyDay ?: base.weeklyReminderDay
             )
         )
         scheduleNotifications(enabled, time ?: base.notificationTime, weeklyDay)
@@ -159,6 +188,8 @@ class SettingsViewModel @Inject constructor(
                 _backupResult.value = true to uri
                 _userMessage.emit("Backup created successfully")
             } catch (e: Exception) {
+                // Replace with proper error logging in production
+                // Log.e("SettingsViewModel", "Failed to create backup", e)
                 _backupResult.value = false to null
                 _userMessage.emit("Failed to create backup: ${e.message ?: "Unknown error"}")
             }
@@ -180,6 +211,8 @@ class SettingsViewModel @Inject constructor(
                 _restoreResult.value = true to message
                 _userMessage.emit("Data restored successfully")
             } catch (e: Exception) {
+                // Replace with proper error logging in production
+                // Log.e("SettingsViewModel", "Failed to restore data", e)
                 _restoreResult.value = false to (e.localizedMessage ?: "Unknown error")
                 _userMessage.emit("Failed to restore data: ${e.message ?: "Unknown error"}")
             }
@@ -189,7 +222,7 @@ class SettingsViewModel @Inject constructor(
     fun clearBackupResult() { _backupResult.value = null }
     fun clearRestoreResult() { _restoreResult.value = null }
 
-    private fun scheduleNotifications(
+    private suspend fun scheduleNotifications( // UPDATED: Made suspend
         enabled: Boolean,
         time: String,
         weeklyDay: DayOfWeek?
@@ -197,41 +230,48 @@ class SettingsViewModel @Inject constructor(
         workManager.cancelUniqueWork("budget_notification")
         if (!enabled) return
 
-        val parts  = time.split(":")
-        val hour   = parts.getOrNull(0)?.toIntOrNull() ?: return
-        val minute = parts.getOrNull(1)?.toIntOrNull() ?: return
+        try {
+            val parts  = time.split(":")
+            val hour   = parts.getOrNull(0)?.toIntOrNull()
+            val minute = parts.getOrNull(1)?.toIntOrNull()
 
-        val now         = ZonedDateTime.now(ZoneId.systemDefault())
-        val todayTarget = now
-            .withHour(hour)
-            .withMinute(minute)
-            .withSecond(0)
-            .withNano(0)
+            if (hour == null || minute == null) {
+                _userMessage.emit("Invalid notification time format. Please use HH:mm.")
+                return
+            }
 
-        val firstRun = if (weeklyDay != null) {
-            now.with(TemporalAdjusters.nextOrSame(weeklyDay))
-                .withHour(hour).withMinute(minute).withSecond(0).withNano(0)
-        } else {
-            if (todayTarget.isAfter(now)) todayTarget else todayTarget.plusDays(1)
+            val now         = ZonedDateTime.now(ZoneId.systemDefault())
+            val todayTarget = now
+                .withHour(hour)
+                .withMinute(minute)
+                .withSecond(0)
+                .withNano(0)
+
+            val firstRun = if (weeklyDay != null) {
+                now.with(TemporalAdjusters.nextOrSame(weeklyDay))
+                    .withHour(hour).withMinute(minute).withSecond(0).withNano(0)
+            } else {
+                if (todayTarget.isAfter(now)) todayTarget else todayTarget.plusDays(1)
+            }
+
+            val initialDelay = ChronoUnit.SECONDS.between(now, firstRun)
+            val intervalDays  = if (weeklyDay != null) 7L else 1L
+
+            val workRequest = PeriodicWorkRequestBuilder<NotificationWorker>(
+                intervalDays, TimeUnit.DAYS
+            )
+                .setInitialDelay(initialDelay, TimeUnit.SECONDS)
+                .build()
+
+            workManager.enqueueUniquePeriodicWork(
+                "budget_notification",
+                ExistingPeriodicWorkPolicy.UPDATE,
+                workRequest
+            )
+        } catch (e: Exception) {
+            // Replace with proper error logging in production
+            // Log.e("SettingsViewModel", "Error scheduling notifications", e)
+            _userMessage.emit("Failed to schedule notifications: ${e.message ?: "Unknown error"}")
         }
-
-        val initialDelay = ChronoUnit.SECONDS.between(now, firstRun)
-        val intervalDays  = if (weeklyDay != null) 7L else 1L
-
-        val workRequest = PeriodicWorkRequestBuilder<NotificationWorker>(
-            intervalDays, TimeUnit.DAYS
-        )
-            .setInitialDelay(initialDelay, TimeUnit.SECONDS)
-            .build()
-
-        workManager.enqueueUniquePeriodicWork(
-            "budget_notification",
-            ExistingPeriodicWorkPolicy.UPDATE,
-            workRequest
-        )
     }
-
-    private fun currentSettings(): AppSettings =
-        (_uiState.value as? SettingsUiState.Success)?.settings
-            ?: AppSettings.getDefault()
 }

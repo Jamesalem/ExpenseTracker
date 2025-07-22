@@ -1,4 +1,3 @@
-// ui/expense/ExpenseEditScreen.kt
 package com.example.expensetracker.ui.expense
 
 import android.app.DatePickerDialog
@@ -34,11 +33,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost // NEW: Import SnackbarHost
+import androidx.compose.material3.SnackbarHostState // NEW: Import SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.LaunchedEffect // NEW: Import LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -77,10 +78,22 @@ fun ExpenseEditScreen(
     val context = LocalContext.current
     var showDelete by remember { mutableStateOf(false) }
     val ext = MaterialTheme.extendedColors
+    val snackbarHostState = remember { SnackbarHostState() } // NEW: Create SnackbarHostState
 
-    // initialize
+    // initialize form with expense data
     LaunchedEffect(expense) {
         expense?.let { vm.initForm(it) }
+    }
+
+    // NEW: Observe user messages for SnackBar and navigation after save/delete
+    LaunchedEffect(vm.userMessage) {
+        vm.userMessage.collect { message ->
+            snackbarHostState.showSnackbar(message)
+            // Navigate back only after a successful save/delete message is shown
+            if (message.contains("successfully")) { // Simple check, refine if needed
+                navController.popBackStack()
+            }
+        }
     }
 
     // date picker
@@ -119,13 +132,14 @@ fun ExpenseEditScreen(
             ExtendedFloatingActionButton(
                 onClick = {
                     vm.submitExpense()
-                    navController.popBackStack()
+                    // REMOVED: navController.popBackStack() is now handled in LaunchedEffect(vm.userMessage)
                 },
                 icon = { Icon(Icons.Default.Save, contentDescription = stringResource(R.string.save)) },
                 text = { Text(stringResource(R.string.save_changes), style = Typography.labelLarge) },
                 containerColor = MaterialTheme.colorScheme.primary
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) } // NEW: Provide SnackbarHost
     ) { inner ->
         if (expense == null) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -168,7 +182,7 @@ fun ExpenseEditScreen(
 
                 // Date
                 OutlinedTextField(
-                    value = DateFormatter.toDisplay(form.date),
+                    value = DateFormatter.toDisplay(form.date), // Correctly using DateFormatter.toDisplay for Date object
                     onValueChange = {},
                     label = { Text(stringResource(R.string.date), style = Typography.labelLarge) },
                     leadingIcon = {
@@ -281,7 +295,8 @@ fun ExpenseEditScreen(
             confirmButton = {
                 TextButton(onClick = {
                     vm.deleteExpense(expense!!)
-                    navController.popBackStack()
+                    showDelete = false // Dismiss dialog immediately
+                    // REMOVED: navController.popBackStack() is now handled in LaunchedEffect(vm.userMessage)
                 }) {
                     Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
                 }

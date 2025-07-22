@@ -1,45 +1,47 @@
+// data/util/CurrencyFormatter.kt
 package com.example.expensetracker.data.util
 
+import com.example.expensetracker.data.model.AppSettings
 import java.text.NumberFormat
 import java.util.Currency
+import java.util.Locale
 
-object CurrencyFormatter { // Changed to object for singleton pattern
-    private const val DEFAULT_DECIMAL_PLACES = 2
-    private const val DEFAULT_USE_GROUPING = true
+object CurrencyFormatter {
 
-    fun format(amount: Double, currencyCode: String): String {
-        return format(amount, currencyCode, DEFAULT_DECIMAL_PLACES, DEFAULT_USE_GROUPING)
-    }
-
-    fun format(amount: Double, currencyCode: String, decimalPlaces: Int, useGrouping: Boolean): String {
-        val currency = try {
-            Currency.getInstance(currencyCode)
-        } catch (e: Exception) {
-            Currency.getInstance("USD")
-        }
-
-        val format = NumberFormat.getCurrencyInstance().apply {
-            this.currency = currency
-            maximumFractionDigits = decimalPlaces
-            minimumFractionDigits = decimalPlaces
-            isGroupingUsed = useGrouping
-        }
-        return format.format(amount)
-    }
-
-    fun getSymbol(currencyCode: String): String {
+    fun formatCurrency(amount: Double, settings: AppSettings): String {
         return try {
-            Currency.getInstance(currencyCode).symbol
+            val currencyInstance = Currency.getInstance(settings.defaultCurrency)
+            val format = NumberFormat.getCurrencyInstance(Locale.getDefault()).apply {
+                currency = currencyInstance
+                minimumFractionDigits = settings.decimalPlaces
+                maximumFractionDigits = settings.decimalPlaces
+                isGroupingUsed = settings.useGroupingSeparator
+            }
+            format.format(amount)
         } catch (e: Exception) {
-            currencyCode
+            // Fallback in case of invalid currency code or other formatting issues
+            String.format(Locale.getDefault(), "%.${settings.decimalPlaces}f", amount)
         }
     }
 
-    fun getDisplayName(currencyCode: String): String {
+    // NEW: Overload for direct formatting with specific parameters
+    fun format(
+        amount: Double,
+        currencyCode: String,
+        decimalPlaces: Int = 2, // Default to 2 if not provided
+        useGrouping: Boolean = true // Default to true if not provided
+    ): String {
         return try {
-            Currency.getInstance(currencyCode).displayName
+            val currencyInstance = Currency.getInstance(currencyCode)
+            val format = NumberFormat.getCurrencyInstance(Locale.getDefault()).apply {
+                currency = currencyInstance
+                minimumFractionDigits = decimalPlaces
+                maximumFractionDigits = decimalPlaces
+                isGroupingUsed = useGrouping
+            }
+            format.format(amount)
         } catch (e: Exception) {
-            currencyCode
+            String.format(Locale.getDefault(), "%.${decimalPlaces}f", amount)
         }
     }
 }

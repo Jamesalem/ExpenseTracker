@@ -1,4 +1,3 @@
-// ui/category/CategoryListScreen.kt
 package com.example.expensetracker.ui.category
 
 import androidx.compose.foundation.background
@@ -72,6 +71,13 @@ fun CategoryListScreen(
         }
     }
 
+    // NEW: LaunchedEffect to observe one-time user messages from ViewModel
+    LaunchedEffect(viewModel.userMessage) {
+        viewModel.userMessage.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(title = { Text(stringResource(R.string.manage_categories)) })
@@ -134,16 +140,17 @@ fun CategoryListScreen(
                 }
             }
             is CategoryViewModel.CategoryUiState.Error -> {
-                Box(
+                Box( // UPDATED: Show actual error message
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        stringResource(R.string.no_categories_found),
+                        // Display the actual error message
+                        (uiState as CategoryViewModel.CategoryUiState.Error).message,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.error // Use error color for clarity
                     )
                 }
             }

@@ -1,4 +1,3 @@
-// ui/home/HomeScreen.kt
 package com.example.expensetracker.ui.home
 
 import androidx.compose.foundation.background
@@ -18,14 +17,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Coffee
-import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.filled.Wallet
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
@@ -58,15 +53,15 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.expensetracker.R
+import com.example.expensetracker.data.home.HomeUtils
+import com.example.expensetracker.data.home.Transaction
 import com.example.expensetracker.data.model.AppSettings
 import com.example.expensetracker.data.model.Expense
 import com.example.expensetracker.data.util.CurrencyFormatter
-import com.example.expensetracker.data.util.DateFormatter
 import com.example.expensetracker.data.viewmodel.ExpenseViewModel
 import com.example.expensetracker.data.viewmodel.SettingsViewModel
 import com.example.expensetracker.ui.navigation.Routes
 import com.example.expensetracker.ui.theme.Dimens
-import java.util.Locale
 
 @Composable
 fun HomeScreen(
@@ -77,9 +72,9 @@ fun HomeScreen(
     val expenses by expenseViewModel.expenses.collectAsState(initial = emptyList())
     val settings by settingsViewModel.appSettings.collectAsState(initial = AppSettings())
 
-    // Compute recent transactions once per expenses change
+    // Compute recent transactions once per expenses change using HomeUtils
     val recentTransactions by remember(expenses) {
-        mutableStateOf(getRecentTransactions(expenses))
+        mutableStateOf(HomeUtils.getRecentTransactions(expenses)) // UPDATED: Use HomeUtils
     }
 
     Scaffold(
@@ -119,13 +114,13 @@ fun HomeAppBar() {
     CenterAlignedTopAppBar(
         title = {
             Text(
-                stringResource(R.string.dashboard_title),
+                stringResource(R.string.dashboard_title), // This might be "Home" or app name
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
             )
         },
         actions = {
-            IconButton(onClick = { /* TODO */ }) {
-                BadgedBox(badge = { Badge { Text("3") } }) {
+            IconButton(onClick = { /* TODO */ }) { // TODO: Implement notifications action
+                BadgedBox(badge = { Badge { Text("3") } }) { // TODO: Make badge count dynamic
                     Icon(
                         Icons.Filled.Notifications,
                         contentDescription = stringResource(R.string.notifications),
@@ -328,12 +323,12 @@ fun TransactionItem(transaction: Transaction, settings: AppSettings) {
                 modifier = Modifier
                     .size(40.dp)
                     .clip(MaterialTheme.shapes.small)
-                    .background(transaction.category.color),
+                    .background(transaction.categoryDisplay.color), // UPDATED: Use categoryDisplay.color
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    transaction.category.icon,
-                    contentDescription = transaction.category.name,
+                    transaction.categoryDisplay.icon, // UPDATED: Use categoryDisplay.icon
+                    contentDescription = transaction.categoryDisplay.name,
                     tint = Color.White,
                     modifier = Modifier.size(20.dp)
                 )
@@ -346,7 +341,7 @@ fun TransactionItem(transaction: Transaction, settings: AppSettings) {
                 )
                 Spacer(Modifier.height(Dimens.extraSmall))
                 Text(
-                    "${transaction.category.name} • ${transaction.date}",
+                    "${transaction.categoryDisplay.name} • ${transaction.date}", // UPDATED: Use categoryDisplay.name
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -359,44 +354,4 @@ fun TransactionItem(transaction: Transaction, settings: AppSettings) {
             )
         }
     }
-}
-
-// --- Data classes & helper functions ---
-
-data class Transaction(
-    val id: String,
-    val title: String,
-    val amount: Double,
-    val date: String,
-    val category: Category,
-    val isExpense: Boolean
-)
-
-data class Category(
-    val name: String,
-    val icon: ImageVector,
-    val color: Color
-)
-
-fun getRecentTransactions(expenses: List<Expense>): List<Transaction> {
-    // sort descending by epoch millis then take top 4
-    return expenses
-        .sortedByDescending { it.date }
-        .take(4)
-        .map { exp ->
-            Transaction(
-                id = exp.id.toString(),
-                title = exp.title,
-                amount = if (exp.type == Expense.ExpenseType.EXPENSE) -exp.amount else exp.amount,
-                date = DateFormatter.formatShortDate(exp.date),
-                category = when (exp.category.lowercase(Locale.getDefault())) {
-                    "food"      -> Category("Food", Icons.Filled.ShoppingCart, Color(0xFFFF6B6B))
-                    "income"    -> Category("Income", Icons.Filled.AccountBalance, Color(0xFF4CAF50))
-                    "utilities" -> Category("Utilities", Icons.Filled.Lightbulb, Color(0xFFFF9800))
-                    "dining"    -> Category("Dining", Icons.Filled.Coffee, Color(0xFF9C27B0))
-                    else        -> Category("Other", Icons.Filled.Wallet, Color(0xFF607D8B))
-                },
-                isExpense = exp.type == Expense.ExpenseType.EXPENSE
-            )
-        }
 }

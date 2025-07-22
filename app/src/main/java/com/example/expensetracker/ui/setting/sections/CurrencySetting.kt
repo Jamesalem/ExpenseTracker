@@ -1,4 +1,3 @@
-// ui/setting/sections/CurrencySetting.kt
 package com.example.expensetracker.ui.setting.sections
 
 import androidx.compose.material.icons.Icons
@@ -17,7 +16,7 @@ import com.example.expensetracker.ui.setting.components.SettingsCard
 fun CurrencySetting(
     appSettings: AppSettings,
     onCurrencyClick: () -> Unit,
-    onDecimalClick: () -> Unit,
+    onDecimalClick: () -> Unit, // UPDATED: Changed signature to () -> Unit
     onGroupingSeparatorChange: (Boolean) -> Unit
 ) {
     SettingsCard {
@@ -31,7 +30,7 @@ fun CurrencySetting(
         SettingItem(
             title   = stringResource(R.string.decimal_places),
             subtitle= appSettings.decimalPlaces.toString(),
-            onClick = onDecimalClick
+            onClick = onDecimalClick // This now correctly matches () -> Unit
         )
 
         SettingItem(
