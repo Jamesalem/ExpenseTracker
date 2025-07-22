@@ -1,8 +1,6 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- App Identity -->
     <string name="app_name">ExpenseTracker</string>
 
-    <!-- Common UI Elements -->
     <string name="cancel">Cancel</string>
     <string name="add">Add</string>
     <string name="save">Save</string>
@@ -22,7 +20,6 @@
     <string name="loading">Loading</string>
     <string name="try_again_message">Please try again</string>
 
-    <!-- Navigation & Screens -->
     <string name="dashboard_title">Dashboard</string>
     <string name="settings">Settings</string>
     <string name="expenses">Expenses</string>
@@ -32,7 +29,6 @@
     <string name="view_all_expenses">View All Expenses</string>
     <string name="see_more">See More</string>
 
-    <!-- Expense Management -->
     <string name="add_expense">Add Expense</string>
     <string name="edit_expense">Edit Expense</string>
     <string name="expense_title">Title</string>
@@ -43,7 +39,6 @@
     <string name="no_expenses_found">No expenses found</string>
     <string name="total_expenses">Total Expenses</string>
 
-    <!-- Category Management -->
     <string name="manage_categories">Manage Categories</string>
     <string name="add_category">Add Category</string>
     <string name="edit_category">Edit Category</string>
@@ -59,10 +54,7 @@
     <string name="category_added_successfully">Category added successfully</string>
     <string name="category_updated_successfully">Category updated successfully</string>
     <string name="category_deleted_successfully">Category deleted successfully</string>
-    <string name="category_count">Category Count"</string>
-
-    <!-- Budget Management -->
-    <string name="set_budget">Set Budget</string>
+    <string name="category_count">Category Count</string> <string name="set_budget">Set Budget</string>
     <string name="edit_budget">Edit Budget</string>
     <string name="budget_amount">Budget Amount</string>
     <string name="budget_period">Budget Period</string>
@@ -75,7 +67,6 @@
     <string name="budget_usage" formatted="false">%.2f of %.2f (%d%%)</string>
     <string name="budget_remaining">Remaining: %s</string>
 
-    <!-- Expense Management -->
     <string name="new_expense">New Expense</string>
     <string name="save_expense">Save Expense</string>
     <string name="amount">Amount</string>
@@ -100,7 +91,6 @@
     <string name="type">Type</string>
     <string name="currency_code">Currency Code</string>
 
-    <!-- Home Screen -->
     <string name="current_balance">Current Balance</string>
     <string name="quick_actions">Quick Actions</string>
     <string name="recent_transactions">Recent Transactions</string>
@@ -109,7 +99,6 @@
     <string name="spending_insight">Spending Insight</string>
     <string name="view_all">View All</string>
 
-    <!-- Dashboard -->
     <string name="total_spent">Total Spent</string>
     <string name="remaining">Remaining</string>
     <string name="top_categories">Top Categories</string>
@@ -121,7 +110,6 @@
     <string name="next_month">Next Month</string>
     <string name="current_month">Current Month</string>
 
-    <!-- Currency Management -->
     <string name="currency_settings">Currency</string>
     <string name="default_currency">Default Currency</string>
     <string name="select_currency">Select Currency</string>
@@ -130,7 +118,6 @@
     <string name="all_currencies">All Currencies</string>
     <string name="currency_format" formatted="false">%s%.2f</string>
 
-    <!-- Settings Sections -->
     <string name="appearance">Appearance</string>
     <string name="notifications">Notifications</string>
     <string name="security">Security</string>
@@ -160,7 +147,6 @@
     <string name="theme">Theme</string>
     <string name="select_decimal_places">Select Decimal Places</string>
 
-    <!-- Appearance Settings -->
     <string name="theme_settings">Theme</string>
     <string name="theme_mode">Theme Mode</string>
     <string name="light_mode">Light</string>
@@ -174,7 +160,6 @@
     <string name="right">Right</string>
 
 
-    <!-- Notification Settings -->
     <string name="notification_settings">Notifications</string>
     <string name="enable_notifications">Enable Notifications</string>
     <string name="budget_alerts">Budget Alerts</string>
@@ -187,7 +172,6 @@
     <string name="budget_notification_description">Notifications about your budget status</string>
     <string name="notification_summary">Notifications at %s on %s</string>
 
-    <!-- Security Settings -->
     <string name="security_settings">Security</string>
     <string name="app_lock_settings">App Lock</string>
     <string name="enable_app_lock">Enable App Lock</string>
@@ -201,7 +185,6 @@
     <string name="biometric_prompt_title">Authenticate to continue</string>
     <string name="biometric_error">Biometric authentication failed</string>
 
-    <!-- Data Management -->
     <string name="backup_settings">Backup</string>
     <string name="restore_settings">Restore</string>
     <string name="enable_auto_backup">Auto Backup</string>
@@ -216,10 +199,8 @@
     <string name="import_data">Import Data</string>
     <string name="export_csv">Export to CSV</string>
     <string name="import_csv">Import from CSV</string>
-    <string name="disabled">Disabled</string>"
-    <string name="auto_backup">Auto Backup</string>
+    <string name="disabled">Disabled</string> <string name="auto_backup">Auto Backup</string>
 
-    <!-- Reports & Analytics -->
     <string name="spending_report">Spending Report</string>
     <string name="category_report">Category Report</string>
     <string name="time_period">Time Period</string>
@@ -231,7 +212,6 @@
     <string name="export_to_csv">Export to CSV</string>
     <string name="generate_report">Generate Report</string>
 
-    <!-- Errors & Messages -->
     <string name="error_title">Error</string>
     <string name="warning_title">Warning</string>
     <string name="success_title">Success</string>
@@ -244,15 +224,12 @@
     <string name="permission_denied">Permission denied</string>
     <string name="storage_permission_required">Storage permission required for backup</string>
 
-    <!-- Room Database -->
     <string name="db_error">Database error: %s</string>
     <string name="db_import_success">Data imported successfully!</string>
     <string name="db_export_success">Data exported successfully!</string>
 
-    <!-- WorkManager -->
     <string name="backup_in_progress">Backup in progress…</string>
     <string name="auto_backup_completed">Auto backup completed</string>
 
-    <!-- DataStore -->
     <string name="preferences_saved">Preferences saved</string>
 </resources>
