@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
@@ -19,6 +20,7 @@ import androidx.work.WorkerParameters
 import com.example.expensetracker.MainActivity
 import com.example.expensetracker.R
 import com.example.expensetracker.data.repository.SettingsRepository
+import com.example.expensetracker.data.util.SoundUtil
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.firstOrNull
@@ -36,6 +38,7 @@ class TimerWorker @AssistedInject constructor(
             val settings = settingsRepo.appSettings.firstOrNull() ?: return Result.success()
             val taskTitle = inputData.getString("task_title") ?: "Focus Session"
             
+            SoundUtil.playCompletionSound(context, settings.timerSoundUri)
             showTimerNotification(taskTitle, settings.timerSoundUri)
             Result.success()
         } catch (e: Exception) {
@@ -46,15 +49,19 @@ class TimerWorker @AssistedInject constructor(
 
     private fun showTimerNotification(taskTitle: String, soundUriString: String?) {
         val baseChannelId = "timer_alerts"
-        val channelId = if (soundUriString != null) {
-            "${baseChannelId}_${soundUriString.hashCode()}"
+        
+        // Fallback to default notification sound if none is set
+        val soundUri = if (!soundUriString.isNullOrBlank()) {
+            Uri.parse(soundUriString)
         } else {
-            baseChannelId
+            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         }
 
-        val notificationId = 1002
-        val soundUri = soundUriString?.let { Uri.parse(it) }
+        // Generate unique channel ID based on sound to ensure settings take effect
+        // (Channels are immutable once created, so change in sound needs a new channel)
+        val channelId = "${baseChannelId}_${soundUri.hashCode()}"
 
+        val notificationId = 1002
         createTimerNotificationChannel(channelId, soundUri)
 
         val builder = NotificationCompat.Builder(context, channelId)
@@ -65,18 +72,16 @@ class TimerWorker @AssistedInject constructor(
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
             .setContentIntent(createPendingIntent())
-            .setVibrate(longArrayOf(0, 500, 200, 500))
-
-        if (soundUri != null) {
-            builder.setSound(soundUri)
-        }
+            .setSound(soundUri)
+            .setVibrate(longArrayOf(0, 500, 250, 500, 250, 500)) // More prominent vibration
+            .setFullScreenIntent(createPendingIntent(), true) // Important for immediate visibility
 
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
             NotificationManagerCompat.from(context).notify(notificationId, builder.build())
         }
     }
 
-    private fun createTimerNotificationChannel(channelId: String, soundUri: Uri?) {
+    private fun createTimerNotificationChannel(channelId: String, soundUri: Uri) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -87,13 +92,13 @@ class TimerWorker @AssistedInject constructor(
         val channel = NotificationChannel(channelId, channelName, importance).apply {
             description = "Notifications for Pomodoro and Task timers"
             enableVibration(true)
-            if (soundUri != null) {
-                val audioAttributes = AudioAttributes.Builder()
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                    .build()
-                setSound(soundUri, audioAttributes)
-            }
+            lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            
+            val audioAttributes = AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(AudioAttributes.USAGE_ALARM) // Using ALARM usage for better audibility
+                .build()
+            setSound(soundUri, audioAttributes)
         }
         notificationManager.createNotificationChannel(channel)
     }
@@ -104,7 +109,7 @@ class TimerWorker @AssistedInject constructor(
         }
         return PendingIntent.getActivity(
             context,
-            0,
+            1, // Unique request code for timer
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )

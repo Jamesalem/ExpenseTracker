@@ -5,6 +5,8 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -12,16 +14,15 @@ import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.example.expensetracker.R
 import com.example.expensetracker.data.model.AppSettings
 import com.example.expensetracker.ui.setting.components.SettingItem
 import com.example.expensetracker.ui.setting.components.SettingsCard
@@ -32,6 +33,7 @@ fun NotificationSetting(
     onNotificationToggle: (Boolean) -> Unit,
     onNotificationSettingsClick: () -> Unit,
     onTestNotificationClick: () -> Unit,
+    onTestAlarmClick: () -> Unit,
     onSoundPickerClick: () -> Unit,
     onLoggingReminderToggle: (Boolean) -> Unit,
     onLoggingReminderSettingsClick: () -> Unit,
@@ -128,13 +130,23 @@ fun NotificationSetting(
             onClick = onSoundPickerClick
         )
 
-        OutlinedButton(
-            onClick = onTestNotificationClick,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Send Test Notification Now")
+            OutlinedButton(
+                onClick = onTestNotificationClick,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Test Alert", style = MaterialTheme.typography.labelSmall)
+            }
+            
+            OutlinedButton(
+                onClick = onTestAlarmClick,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Test Sound", style = MaterialTheme.typography.labelSmall)
+            }
         }
     }
 }

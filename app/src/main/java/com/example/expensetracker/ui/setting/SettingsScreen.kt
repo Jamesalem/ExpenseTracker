@@ -176,6 +176,7 @@ fun SettingsScreen(
                                 onNotificationToggle = { viewModel.setNotifications(enabled = it) },
                                 onNotificationSettingsClick = { showNotificationsDialog = true },
                                 onTestNotificationClick = { viewModel.sendTestNotification() },
+                                onTestAlarmClick = { viewModel.sendTestTimerAlarm() },
                                 onSoundPickerClick = {
                                     val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
                                         putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION)

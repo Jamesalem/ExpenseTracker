@@ -1,12 +1,14 @@
 package com.example.expensetracker.data.viewmodel
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.expensetracker.R
@@ -17,6 +19,7 @@ import com.example.expensetracker.data.model.Expense
 import com.example.expensetracker.data.model.ThemeMode
 import com.example.expensetracker.data.repository.ExpenseRepository
 import com.example.expensetracker.data.repository.SettingsRepository
+import com.example.expensetracker.receivers.TimerReceiver
 import com.example.expensetracker.workers.LoggingReminderWorker
 import com.example.expensetracker.workers.NotificationWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -251,6 +254,20 @@ class SettingsViewModel @Inject constructor(
                 _userMessage.emit("Test notification triggered!")
             } catch (e: Exception) {
                 _userMessage.emit("Failed to trigger notification: ${e.message}")
+            }
+        }
+    }
+
+    fun sendTestTimerAlarm() {
+        viewModelScope.launch {
+            try {
+                val intent = Intent(context, TimerReceiver::class.java).apply {
+                    putExtra("task_title", "Test Alarm Check")
+                }
+                context.sendBroadcast(intent)
+                _userMessage.emit("Test timer alarm triggered!")
+            } catch (e: Exception) {
+                _userMessage.emit("Failed to trigger test alarm: ${e.message}")
             }
         }
     }

@@ -1,13 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
     <!--
-      Expense Tracker Backup Rules
-      We include the database so users don't lose their records on device upgrade.
-    -->
-    <include domain="database" path="expense_tracker_db" />
-    <include domain="sharedpref" path="app_preferences.xml" />
-    <include domain="file" path="." />
+      Expense Tracker Auto-Backup Configuration
 
-    <!-- Exclude temp and cache files -->
+      This ensures that when a user switches phones or reinstalls the app,
+      their financial records are automatically restored from their Google Account.
+    -->
+
+    <!-- Include the local database -->
+    <include domain="database" path="expense_tracker_db" />
+
+    <!-- Include user settings and preferences -->
+    <include domain="sharedpref" path="app_preferences.xml" />
+    <include domain="sharedpref" path="com.example.expensetracker_preferences.xml" />
+
+    <!-- Include all files except temporary reports -->
+    <include domain="file" path="." />
     <exclude domain="file" path="financial_reports/" />
 </full-backup-content>

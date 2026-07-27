@@ -1,16 +1,18 @@
 package com.example.expensetracker.data.viewmodel
 
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
-import androidx.work.workDataOf
 import com.example.expensetracker.data.model.TimeEntry
 import com.example.expensetracker.data.repository.SettingsRepository
 import com.example.expensetracker.data.repository.TimeRepository
-import com.example.expensetracker.workers.TimerWorker
+import com.example.expensetracker.receivers.TimerReceiver
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,14 +25,13 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 @HiltViewModel
 class TimeViewModel @Inject constructor(
     private val timeRepository: TimeRepository,
     private val settingsRepository: SettingsRepository,
-    private val workManager: WorkManager
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     val timeEntries: StateFlow<List<TimeEntry>> = timeRepository.observeAllTimeEntries()
@@ -48,6 +49,7 @@ class TimeViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
     private var tickerJob: Job? = null
+    private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     init {
         viewModelScope.launch {
@@ -64,7 +66,7 @@ class TimeViewModel @Inject constructor(
                     }
                 } else {
                     _elapsedSeconds.value = 0L
-                    workManager.cancelUniqueWork("pomodoro_timer")
+                    cancelAlarm()
                 }
             }
         }
@@ -81,27 +83,52 @@ class TimeViewModel @Inject constructor(
             timeRepository.startTimer(title, category, isBillable, hourlyRate)
             if (isPomodoro) {
                 val settings = settingsRepository.appSettings.first()
-                val duration = settings.pomodoroDurationMinutes.toLong()
-                
-                val timerRequest = OneTimeWorkRequestBuilder<TimerWorker>()
-                    .setInitialDelay(duration, TimeUnit.MINUTES)
-                    .setInputData(workDataOf("task_title" to title))
-                    .addTag("pomodoro_timer")
-                    .build()
-
-                workManager.enqueueUniqueWork(
-                    "pomodoro_timer",
-                    ExistingWorkPolicy.REPLACE,
-                    timerRequest
-                )
+                scheduleAlarm(title, settings.pomodoroDurationMinutes)
             }
+        }
+    }
+
+    private fun scheduleAlarm(taskTitle: String, durationMinutes: Int) {
+        val intent = Intent(context, TimerReceiver::class.java).apply {
+            putExtra("task_title", taskTitle)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            1001,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val triggerTime = System.currentTimeMillis() + (durationMinutes * 60 * 1000L)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (alarmManager.canScheduleExactAlarms()) {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+            } else {
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+            }
+        } else {
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+        }
+    }
+
+    private fun cancelAlarm() {
+        val intent = Intent(context, TimerReceiver::class.java)
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            1001,
+            intent,
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+        )
+        if (pendingIntent != null) {
+            alarmManager.cancel(pendingIntent)
         }
     }
 
     fun stopTimer(id: Long) {
         viewModelScope.launch {
             timeRepository.stopTimer(id)
-            workManager.cancelUniqueWork("pomodoro_timer")
+            cancelAlarm()
         }
     }
 

@@ -1,5 +1,10 @@
 package com.example.expensetracker.ui.time
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -30,6 +35,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -57,6 +63,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -64,6 +71,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.expensetracker.data.model.AppSettings
@@ -88,11 +96,43 @@ fun TimeTrackerScreen(
     val timeEntries by timeViewModel.timeEntries.collectAsState()
     val settings by settingsViewModel.appSettings.collectAsState(initial = AppSettings())
     val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
 
     var isPomodoroMode by remember { mutableStateOf(false) }
     var taskTitle by remember { mutableStateOf("") }
     var isBillable by remember { mutableStateOf(false) }
     var hourlyRateText by remember { mutableStateOf("") }
+    
+    var entryToDelete by remember { mutableStateOf<TimeEntry?>(null) }
+
+    // Permission Launcher for Notifications
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
+    fun startTimerWithPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val hasPermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!hasPermission) {
+                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+        
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        val rate = hourlyRateText.toDoubleOrNull()
+        val titleFinal = if (isPomodoroMode) taskTitle.ifBlank { "Focus Session" } else taskTitle
+        timeViewModel.startTimer(
+            title = titleFinal,
+            category = "Work",
+            isBillable = isBillable,
+            hourlyRate = rate,
+            isPomodoro = isPomodoroMode
+        )
+        taskTitle = ""
+    }
 
     Scaffold(
         topBar = {
@@ -157,19 +197,7 @@ fun TimeTrackerScreen(
                         hourlyRateText = hourlyRateText,
                         onHourlyRateChange = { hourlyRateText = it },
                         pomodoroDurationMinutes = settings.pomodoroDurationMinutes,
-                        onStartTimer = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            val rate = hourlyRateText.toDoubleOrNull()
-                            val titleFinal = if (isPomodoroMode) taskTitle.ifBlank { "Focus Session" } else taskTitle
-                            timeViewModel.startTimer(
-                                title = titleFinal,
-                                category = "Work",
-                                isBillable = isBillable,
-                                hourlyRate = rate,
-                                isPomodoro = isPomodoroMode
-                            )
-                            taskTitle = ""
-                        },
+                        onStartTimer = { startTimerWithPermission() },
                         onStopTimer = { id ->
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             timeViewModel.stopTimer(id)
@@ -203,7 +231,7 @@ fun TimeTrackerScreen(
                     TimeEntryRowItem(
                         entry = entry,
                         settings = settings,
-                        onDelete = { timeViewModel.deleteEntry(entry.id) },
+                        onDelete = { entryToDelete = entry },
                         onConvertToExpense = { 
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             timeViewModel.convertToExpense(entry, settings.defaultCurrency) 
@@ -213,6 +241,30 @@ fun TimeTrackerScreen(
                 }
             }
         }
+    }
+
+    if (entryToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { entryToDelete = null },
+            title = { Text("Delete Time Log") },
+            text = { Text("Are you sure you want to permanently delete this focus session? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        timeViewModel.deleteEntry(entryToDelete!!.id)
+                        entryToDelete = null
+                    }
+                ) {
+                    Text("DELETE", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { entryToDelete = null }) {
+                    Text("CANCEL")
+                }
+            }
+        )
     }
 }
 
