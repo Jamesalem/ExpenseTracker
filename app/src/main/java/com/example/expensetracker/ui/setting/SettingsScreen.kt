@@ -53,6 +53,7 @@ import com.example.expensetracker.ui.setting.dialogs.PinSetupDialog
 import com.example.expensetracker.ui.setting.dialogs.PomodoroDurationDialog
 import com.example.expensetracker.ui.setting.dialogs.SecuritySettingsDialog
 import com.example.expensetracker.ui.setting.dialogs.ThemeSettingDialog
+import com.example.expensetracker.ui.setting.sections.AboutSetting
 import com.example.expensetracker.ui.setting.sections.AppearanceSetting
 import com.example.expensetracker.ui.setting.sections.BudgetSetting
 import com.example.expensetracker.ui.setting.sections.CategorySetting
@@ -227,6 +228,16 @@ fun SettingsScreen(
                         }
                         item { SettingsSectionHeader(stringResource(R.string.data_management)) }
                         item { DataManagementSetting(appSettings, { showBackupDialog = true }, { createDocumentLauncher.launch("ExpenseTracker_Backup_${LocalDate.now()}.json") }, { openDocumentLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) }
+                        
+                        item { SettingsSectionHeader("About") }
+                        item { 
+                            AboutSetting(
+                                onPrivacyPolicyClick = {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Jamesalem/ExpenseTracker/blob/main/PRIVACY_POLICY.md"))
+                                    context.startActivity(intent)
+                                }
+                            )
+                        }
                     }
                 }
             }
