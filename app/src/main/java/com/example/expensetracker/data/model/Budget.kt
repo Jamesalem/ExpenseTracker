@@ -2,9 +2,13 @@
 package com.example.expensetracker.data.model
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "budgets")
+@Entity(
+    tableName = "budgets",
+    indices = [Index(value = ["periodKey"], unique = true)]
+)
 data class Budget(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0L,

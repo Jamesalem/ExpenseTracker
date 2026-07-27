@@ -35,7 +35,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import com.example.expensetracker.R
-import com.example.expensetracker.data.util.CurrencyFormatter
+import com.example.expensetracker.data.util.CurrencyHelper
 import com.example.expensetracker.ui.theme.Dimens
 import com.example.expensetracker.ui.theme.Shapes
 
@@ -50,6 +50,12 @@ fun BudgetDialog(
     val isValid = budgetAmount.toDoubleOrNull() != null
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
+
+    // NEW: Get the symbol from CurrencyHelper for efficiency
+    val currencySymbol = remember(currencyCode) {
+        CurrencyHelper.allCurrencies.firstOrNull { it.code == currencyCode }?.symbol
+            ?: currencyCode
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -79,15 +85,15 @@ fun BudgetDialog(
             Column(Modifier.padding(Dimens.medium)) {
                 OutlinedTextField(
                     value = budgetAmount,
-                    onValueChange = {
-                        if (it.isEmpty() || it.toDoubleOrNull() != null) {
-                            budgetAmount = it
+                    onValueChange = { input ->
+                        if (input.isEmpty() || input.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
+                            budgetAmount = input
                         }
                     },
                     label = { Text(stringResource(R.string.budget_amount)) },
                     leadingIcon = {
                         Text(
-                            text = CurrencyFormatter.getSymbol(currencyCode),
+                            text = currencySymbol,
                             style = MaterialTheme.typography.bodyLarge
                         )
                     },
@@ -98,7 +104,7 @@ fun BudgetDialog(
                         }
                     },
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
+                        keyboardType = KeyboardType.Decimal,
                         imeAction = ImeAction.Done
                     ),
                     keyboardActions = KeyboardActions(

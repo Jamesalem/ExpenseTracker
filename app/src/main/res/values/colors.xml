@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Launcher Icon Colors (Optimized) -->
-    <color name="launcher_background_gradient_center">#42A5F5</color> <!-- Lighter blue for center -->
-    <color name="launcher_background_gradient_edge">#64B5F6</color>   <!-- UPDATED: Lighter blue for edges -->
-    <color name="launcher_foreground_color">#FFFFFF</color>         <!-- White for the foreground icon -->
+    <!-- Launcher Icon Colors (Premium Modern Palette) -->
+    <color name="launcher_background_gradient_center">#1E1B4B</color> <!-- Rich Royal Dark Blue/Indigo -->
+    <color name="launcher_background_gradient_edge">#0F172A</color>   <!-- Deep Slate Navy -->
+    <color name="launcher_foreground_color">#10B981</color>         <!-- Vibrant Emerald Green -->
+    <color name="launcher_accent_color">#34D399</color>             <!-- Light Mint Accent -->
 
     <!-- Existing colors (ensure they are present or integrate these new ones into your existing scheme) -->
     <color name="purple_200">#FFBB86FC</color>

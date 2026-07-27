@@ -1,8 +1,8 @@
 # libs.versions.toml
 
 [versions]
-agp = "8.6.0"
-kotlin = "2.2.0"
+agp = "8.13.2"
+kotlin = "2.0.21"
 composeCompiler = "1.6.0"
 composeBom = "2024.06.00"
 coreKtx = "1.13.1"
@@ -28,8 +28,7 @@ espressoCore = "3.5.1"
 material = "1.12.0"
 androidxAnnotation = "1.9.1"
 kotlinxCoroutines = "1.8.0"
-# *** REMOVED: KSP version removed for Kapt migration ***
-# ksp = "2.2.0-1.0.20"
+timber = "5.0.1"
 
 [libraries]
 # Core
@@ -82,6 +81,7 @@ androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version
 # Other
 places = { module = "com.google.android.libraries.places:places", version.ref = "places" }
 desugarJdkLibs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugarJdkLibs" }
+timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
 
 # Testing
 junit = { module = "junit:junit", version.ref = "junit" }
@@ -99,5 +99,3 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 hilt-android = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-# *** REMOVED: KSP plugin alias removed for Kapt migration ***
-# ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

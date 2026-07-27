@@ -1,11 +1,15 @@
+// ui/setting/SettingsScreen.kt
 package com.example.expensetracker.ui.setting
 
 import android.content.Intent
+import android.media.RingtoneManager
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,12 +34,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.expensetracker.R
 import com.example.expensetracker.data.model.AppSettings
+import com.example.expensetracker.data.util.BiometricPromptManager
 import com.example.expensetracker.data.viewmodel.SettingsViewModel
 import com.example.expensetracker.ui.setting.components.SettingsSectionHeader
 import com.example.expensetracker.ui.setting.dialogs.BackupSettingDialog
@@ -43,8 +47,10 @@ import com.example.expensetracker.ui.setting.dialogs.BudgetSettingDialog
 import com.example.expensetracker.ui.setting.dialogs.CategoryManagementDialog
 import com.example.expensetracker.ui.setting.dialogs.CurrencyPickerDialog
 import com.example.expensetracker.ui.setting.dialogs.DecimalPlacesDialog
+import com.example.expensetracker.ui.setting.dialogs.LoggingReminderDialog
 import com.example.expensetracker.ui.setting.dialogs.NotificationSettingsDialog
 import com.example.expensetracker.ui.setting.dialogs.PinSetupDialog
+import com.example.expensetracker.ui.setting.dialogs.PomodoroDurationDialog
 import com.example.expensetracker.ui.setting.dialogs.SecuritySettingsDialog
 import com.example.expensetracker.ui.setting.dialogs.ThemeSettingDialog
 import com.example.expensetracker.ui.setting.sections.AppearanceSetting
@@ -54,6 +60,7 @@ import com.example.expensetracker.ui.setting.sections.CurrencySetting
 import com.example.expensetracker.ui.setting.sections.DataManagementSetting
 import com.example.expensetracker.ui.setting.sections.NotificationSetting
 import com.example.expensetracker.ui.setting.sections.SecuritySetting
+import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,6 +71,8 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsState()
     val appSettings = (uiState as? SettingsViewModel.SettingsUiState.Success)?.settings ?: AppSettings()
     val context = LocalContext.current
+    val activity = context as? FragmentActivity
+    val biometricManager = remember(activity) { activity?.let { BiometricPromptManager(it) } }
 
     // Dialog states
     var showCurrencyPicker     by remember { mutableStateOf(false) }
@@ -72,23 +81,39 @@ fun SettingsScreen(
     var showThemeDialog        by remember { mutableStateOf(false) }
     var showBackupDialog       by remember { mutableStateOf(false) }
     var showNotificationsDialog by remember { mutableStateOf(false) }
+    var showLoggingReminderDialog by remember { mutableStateOf(false) }
+    var showPomodoroDialog     by remember { mutableStateOf(false) }
     var showSecurityDialog     by remember { mutableStateOf(false) }
     var showPinSetupDialog     by remember { mutableStateOf(false) }
-    var showRestorePicker      by remember { mutableStateOf(false) }
     var showDecimalPlacesDialog by remember { mutableStateOf(false) }
 
     val backupResult  by viewModel.backupResult.collectAsState()
     val restoreResult by viewModel.restoreResult.collectAsState()
 
-    // File picker for restore
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri ->
-        uri?.let { viewModel.performRestore(it) }
-        showRestorePicker = false
+    // Sound Picker Launcher
+    val soundPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val uri: Uri? = result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            viewModel.setTimerSound(uri?.toString())
+        }
     }
 
-    // Handle backup result (share or toast)
+    // SAF Document Launchers
+    val createDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri?.let { viewModel.exportBackupToUri(it) }
+    }
+
+    val openDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let { viewModel.performRestore(it) }
+    }
+
+    // Handle results
     LaunchedEffect(backupResult) {
         backupResult?.let { (success, uri) ->
             if (success && uri != null) {
@@ -97,12 +122,7 @@ fun SettingsScreen(
                     putExtra(Intent.EXTRA_STREAM, uri)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
-                context.startActivity(
-                    Intent.createChooser(
-                        shareIntent,
-                        context.getString(R.string.share_backup)
-                    )
-                )
+                context.startActivity(Intent.createChooser(shareIntent, context.getString(R.string.share_backup)))
                 Toast.makeText(context, R.string.backup_success, Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(context, R.string.backup_failed, Toast.LENGTH_LONG).show()
@@ -111,18 +131,9 @@ fun SettingsScreen(
         }
     }
 
-    // Handle restore result (toast)
     LaunchedEffect(restoreResult) {
         restoreResult?.let { (success, message) ->
-            if (success) {
-                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.restore_failed, message),
-                    Toast.LENGTH_LONG
-                ).show()
-            }
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
             viewModel.clearRestoreResult()
         }
     }
@@ -132,128 +143,90 @@ fun SettingsScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.settings)) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back)
-                        )
+                    IconButton(onClick = { navController.navigateUp() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
         }
-    ) { paddingValues ->
-        when (uiState) {
-            is SettingsViewModel.SettingsUiState.Loading -> {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(paddingValues),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            when (uiState) {
+                is SettingsViewModel.SettingsUiState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                is SettingsViewModel.SettingsUiState.Error -> {
+                    Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                        Text(text = (uiState as SettingsViewModel.SettingsUiState.Error).message, color = MaterialTheme.colorScheme.error)
+                    }
                 }
-            }
-            is SettingsViewModel.SettingsUiState.Error -> {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(paddingValues),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = (uiState as SettingsViewModel.SettingsUiState.Error).message,
-                        color = MaterialTheme.colorScheme.error,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-            is SettingsViewModel.SettingsUiState.Success -> {
-                LazyColumn(
-                    modifier = Modifier
-                        .padding(paddingValues)
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    // Currency Settings
-                    item { SettingsSectionHeader(stringResource(R.string.currency_settings)) }
-                    item {
-                        CurrencySetting(
-                            appSettings = appSettings,
-                            onCurrencyClick = { showCurrencyPicker = true },
-                            onDecimalClick = { showDecimalPlacesDialog = true },
-                            onGroupingSeparatorChange = { useGrouping ->
-                                viewModel.setGroupingSeparator(useGrouping)
-                            }
-                        )
-                    }
-
-                    // Budget Management
-                    item { SettingsSectionHeader(stringResource(R.string.budget_management)) }
-                    item {
-                        BudgetSetting(
-                            appSettings = appSettings,
-                            onBudgetClick = { showBudgetDialog = true }
-                        )
-                    }
-
-                    // Expense Categories
-                    item { SettingsSectionHeader(stringResource(R.string.expense_categories)) }
-                    item {
-                        CategorySetting(
-                            appSettings = appSettings,
-                            onCategoryClick = { showCategoryDialog = true }
-                        )
-                    }
-
-                    // Appearance
-                    item { SettingsSectionHeader(stringResource(R.string.appearance)) }
-                    item {
-                        AppearanceSetting(
-                            appSettings = appSettings,
-                            onThemeClick = { showThemeDialog = true }
-                        )
-                    }
-
-                    // Notifications
-                    item { SettingsSectionHeader(stringResource(R.string.notifications)) }
-                    item {
-                        NotificationSetting(
-                            appSettings = appSettings,
-                            onNotificationToggle = { newValue ->
-                                viewModel.setNotifications(enabled = newValue)
-                            },
-                            onNotificationSettingsClick = { showNotificationsDialog = true }
-                        )
-                    }
-
-                    // Security
-                    item { SettingsSectionHeader(stringResource(R.string.security)) }
-                    item {
-                        SecuritySetting(
-                            appSettings = appSettings,
-                            onAppLockToggle = { useLock ->
-                                viewModel.setSecurity(
-                                    useLock = useLock,
-                                    pin = if (useLock) appSettings.appLockPin else null,
-                                    useBiometrics = appSettings.useBiometrics
-                                )
-                            },
-                            onBiometricsToggle = { useBio ->
-                                viewModel.setSecurity(
-                                    useLock = appSettings.useAppLock,
-                                    pin = appSettings.appLockPin,
-                                    useBiometrics = useBio
-                                )
-                            },
-                            onSecuritySettingsClick = { showSecurityDialog = true }
-                        )
-                    }
-
-                    // Data Management
-                    item { SettingsSectionHeader(stringResource(R.string.data_management)) }
-                    item {
-                        DataManagementSetting(
-                            appSettings = appSettings,
-                            onBackupClick = { showBackupDialog = true },
-                            onBackupNow = { viewModel.performBackup() },
-                            onRestore = { showRestorePicker = true }
-                        )
+                is SettingsViewModel.SettingsUiState.Success -> {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        item { SettingsSectionHeader("General") }
+                        item { CurrencySetting(appSettings, { showCurrencyPicker = true }, { showDecimalPlacesDialog = true }, { viewModel.setGroupingSeparator(it) }) }
+                        item { SettingsSectionHeader("Budget") }
+                        item { BudgetSetting(appSettings, { showBudgetDialog = true }) }
+                        item { SettingsSectionHeader(stringResource(R.string.categories)) }
+                        item { CategorySetting(appSettings, { showCategoryDialog = true }) }
+                        item { SettingsSectionHeader(stringResource(R.string.appearance)) }
+                        item { AppearanceSetting(appSettings, { showThemeDialog = true }) }
+                        item { SettingsSectionHeader(stringResource(R.string.notifications)) }
+                        item {
+                            NotificationSetting(
+                                appSettings = appSettings,
+                                onNotificationToggle = { viewModel.setNotifications(enabled = it) },
+                                onNotificationSettingsClick = { showNotificationsDialog = true },
+                                onTestNotificationClick = { viewModel.sendTestNotification() },
+                                onSoundPickerClick = {
+                                    val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                                        putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION)
+                                        putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Select Timer Sound")
+                                        putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, appSettings.timerSoundUri?.let { Uri.parse(it) })
+                                        putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                                        putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, true)
+                                    }
+                                    soundPickerLauncher.launch(intent)
+                                },
+                                onLoggingReminderToggle = { viewModel.setLoggingReminder(enabled = it) },
+                                onLoggingReminderSettingsClick = { showLoggingReminderDialog = true },
+                                onPomodoroSettingsClick = { showPomodoroDialog = true }
+                            )
+                        }
+                        item { SettingsSectionHeader(stringResource(R.string.security)) }
+                        item {
+                            SecuritySetting(
+                                appSettings = appSettings,
+                                onAppLockToggle = { useLock ->
+                                    if (useLock && activity != null) {
+                                        biometricManager?.showBiometricPrompt(
+                                            title = "Confirm Identity",
+                                            subtitle = "Authenticate to enable App Lock",
+                                            onSuccess = {
+                                                viewModel.setSecurity(useLock = true, pin = appSettings.appLockPin, useBiometrics = appSettings.useBiometrics)
+                                            },
+                                            onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
+                                        )
+                                    } else {
+                                        viewModel.setSecurity(useLock = false, pin = null, useBiometrics = false)
+                                    }
+                                },
+                                onBiometricsToggle = { useBio ->
+                                    if (useBio && activity != null) {
+                                        biometricManager?.showBiometricPrompt(
+                                            title = "Confirm Identity",
+                                            subtitle = "Authenticate to enable Biometrics",
+                                            onSuccess = {
+                                                viewModel.setSecurity(useLock = appSettings.useAppLock, pin = appSettings.appLockPin, useBiometrics = true)
+                                            },
+                                            onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
+                                        )
+                                    } else {
+                                        viewModel.setSecurity(useLock = appSettings.useAppLock, pin = appSettings.appLockPin, useBiometrics = false)
+                                    }
+                                },
+                                onSecuritySettingsClick = { showSecurityDialog = true }
+                            )
+                        }
+                        item { SettingsSectionHeader(stringResource(R.string.data_management)) }
+                        item { DataManagementSetting(appSettings, { showBackupDialog = true }, { createDocumentLauncher.launch("ExpenseTracker_Backup_${LocalDate.now()}.json") }, { openDocumentLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) }
                     }
                 }
             }
@@ -267,6 +240,10 @@ fun SettingsScreen(
                     viewModel.setCurrency(newCurrency)
                     showCurrencyPicker = false
                 },
+                onConvertHistorical = { newCurrency, rate ->
+                    viewModel.convertHistoricalCurrency(newCurrency, rate)
+                    showCurrencyPicker = false
+                },
                 onDismiss = { showCurrencyPicker = false }
             )
         }
@@ -274,8 +251,8 @@ fun SettingsScreen(
             BudgetSettingDialog(
                 currentAmount = appSettings.budgetAmount,
                 currentPeriod = appSettings.budgetPeriod,
-                onConfirm = { amt, period ->
-                    viewModel.setBudget(amt, period)
+                onConfirm = { amount, period ->
+                    viewModel.setBudget(amount, period)
                     showBudgetDialog = false
                 },
                 onDismiss = { showBudgetDialog = false }
@@ -284,8 +261,8 @@ fun SettingsScreen(
         if (showCategoryDialog) {
             CategoryManagementDialog(
                 categories = appSettings.customCategories,
-                onConfirm = { cats ->
-                    viewModel.updateCustomCategories(cats)
+                onConfirm = { newCategories ->
+                    viewModel.updateCustomCategories(newCategories)
                     showCategoryDialog = false
                 },
                 onDismiss = { showCategoryDialog = false }
@@ -294,19 +271,29 @@ fun SettingsScreen(
         if (showThemeDialog) {
             ThemeSettingDialog(
                 currentTheme = appSettings.themeMode,
-                onThemeSelected = { theme ->
-                    viewModel.setTheme(theme)
+                onThemeSelected = { mode ->
+                    viewModel.setTheme(mode)
                     showThemeDialog = false
                 },
                 onDismiss = { showThemeDialog = false }
+            )
+        }
+        if (showDecimalPlacesDialog) {
+            DecimalPlacesDialog(
+                currentDecimalPlaces = appSettings.decimalPlaces,
+                onConfirm = { places ->
+                    viewModel.setDecimalPlaces(places)
+                    showDecimalPlacesDialog = false
+                },
+                onDismiss = { showDecimalPlacesDialog = false }
             )
         }
         if (showBackupDialog) {
             BackupSettingDialog(
                 enabled = appSettings.autoBackupEnabled,
                 frequency = appSettings.autoBackupFrequency,
-                onConfirm = { enabled, freq ->
-                    viewModel.setAutoBackup(enabled, freq)
+                onConfirm = { enabled, frequency ->
+                    viewModel.setAutoBackup(enabled, frequency)
                     showBackupDialog = false
                 },
                 onDismiss = { showBackupDialog = false }
@@ -317,52 +304,55 @@ fun SettingsScreen(
                 enableNotifications = appSettings.enableNotifications,
                 notificationTime = appSettings.notificationTime,
                 weeklyReminderDay = appSettings.weeklyReminderDay,
-                onConfirm = { enabled, time, day ->
-                    viewModel.setNotifications(enabled, time, day)
+                onConfirm = { enabled, time, weeklyDay ->
+                    viewModel.setNotifications(enabled = enabled, time = time, weeklyDay = weeklyDay)
                     showNotificationsDialog = false
                 },
                 onDismiss = { showNotificationsDialog = false }
+            )
+        }
+        if (showLoggingReminderDialog) {
+            LoggingReminderDialog(
+                enabled = appSettings.loggingReminderEnabled,
+                reminderTime = appSettings.loggingReminderTime,
+                onConfirm = { enabled, time ->
+                    viewModel.setLoggingReminder(enabled, time)
+                    showLoggingReminderDialog = false
+                },
+                onDismiss = { showLoggingReminderDialog = false }
+            )
+        }
+        if (showPomodoroDialog) {
+            PomodoroDurationDialog(
+                currentDuration = appSettings.pomodoroDurationMinutes,
+                onConfirm = { mins ->
+                    viewModel.setPomodoroDuration(mins)
+                    showPomodoroDialog = false
+                },
+                onDismiss = { showPomodoroDialog = false }
             )
         }
         if (showSecurityDialog) {
             SecuritySettingsDialog(
                 useAppLock = appSettings.useAppLock,
                 useBiometrics = appSettings.useBiometrics,
-                onConfirm = { useLock, useBio ->
-                    viewModel.setSecurity(useLock, appSettings.appLockPin, useBio)
-                    showSecurityDialog = false
+                onConfirm = { lockEnabled, bioEnabled ->
+                    viewModel.setSecurity(useLock = lockEnabled, pin = if (lockEnabled) appSettings.appLockPin else null, useBiometrics = bioEnabled)
                 },
-                onDismiss = { showSecurityDialog = false },
                 onSetupPin = {
                     showSecurityDialog = false
                     showPinSetupDialog = true
-                }
+                },
+                onDismiss = { showSecurityDialog = false }
             )
         }
         if (showPinSetupDialog) {
             PinSetupDialog(
                 onPinSetupComplete = { pin ->
-                    viewModel.setSecurity(appSettings.useAppLock, pin, appSettings.useBiometrics)
+                    viewModel.setSecurity(useLock = true, pin = pin, useBiometrics = appSettings.useBiometrics)
                     showPinSetupDialog = false
                 },
                 onDismiss = { showPinSetupDialog = false }
-            )
-        }
-        // Trigger file picker outside LazyColumn
-        if (showRestorePicker) {
-            LaunchedEffect(Unit) {
-                filePickerLauncher.launch("application/json")
-            }
-        }
-        // NEW: DecimalPlacesDialog integration
-        if (showDecimalPlacesDialog) {
-            DecimalPlacesDialog(
-                currentDecimalPlaces = appSettings.decimalPlaces,
-                onConfirm = { newDecimalPlaces ->
-                    viewModel.setDecimalPlaces(newDecimalPlaces)
-                    showDecimalPlacesDialog = false
-                },
-                onDismiss = { showDecimalPlacesDialog = false }
             )
         }
     }

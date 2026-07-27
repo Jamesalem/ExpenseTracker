@@ -20,9 +20,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PieChart
-import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -32,26 +37,41 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.viewinterop.AndroidView
+import com.example.expensetracker.ui.theme.PieChartColors
+import com.github.mikephil.charting.charts.PieChart
+import com.github.mikephil.charting.components.Legend
+import com.github.mikephil.charting.data.PieData
+import com.github.mikephil.charting.data.PieDataSet
+import com.github.mikephil.charting.data.PieEntry
+import com.github.mikephil.charting.formatter.PercentFormatter
 import com.example.expensetracker.R
 import com.example.expensetracker.data.home.HomeUtils
 import com.example.expensetracker.data.home.Transaction
@@ -60,25 +80,43 @@ import com.example.expensetracker.data.model.Expense
 import com.example.expensetracker.data.util.CurrencyFormatter
 import com.example.expensetracker.data.viewmodel.ExpenseViewModel
 import com.example.expensetracker.data.viewmodel.SettingsViewModel
+import com.example.expensetracker.data.viewmodel.TimeViewModel
 import com.example.expensetracker.ui.navigation.Routes
 import com.example.expensetracker.ui.theme.Dimens
+import com.example.expensetracker.ui.time.formatDuration
 
 @Composable
 fun HomeScreen(
     navController: NavController,
     expenseViewModel: ExpenseViewModel = hiltViewModel(),
-    settingsViewModel: SettingsViewModel = hiltViewModel()
+    settingsViewModel: SettingsViewModel = hiltViewModel(),
+    timeViewModel: TimeViewModel = hiltViewModel()
 ) {
-    val expenses by expenseViewModel.expenses.collectAsState(initial = emptyList())
+    // OPTIMIZED: Use targeted flows instead of full list filtering
+    val recentExpenses by expenseViewModel.recentExpenses.collectAsState(initial = emptyList())
+    val allExpenses by expenseViewModel.expenses.collectAsState(initial = emptyList())
+    val totalIncome by expenseViewModel.totalIncome.collectAsState(initial = 0.0)
+    val totalExpense by expenseViewModel.totalExpense.collectAsState(initial = 0.0)
     val settings by settingsViewModel.appSettings.collectAsState(initial = AppSettings())
+    val todaySeconds by timeViewModel.todaySeconds.collectAsState()
 
-    // Compute recent transactions once per expenses change using HomeUtils
-    val recentTransactions by remember(expenses) {
-        mutableStateOf(HomeUtils.getRecentTransactions(expenses)) // UPDATED: Use HomeUtils
+    var showNotificationSheet by remember { mutableStateOf(false) }
+
+    val recentTransactions = remember(recentExpenses) {
+        HomeUtils.getRecentTransactions(recentExpenses)
+    }
+
+    val spentByCategory = remember(allExpenses) {
+        allExpenses
+            .filter { it.type == Expense.ExpenseType.EXPENSE }
+            .groupBy { it.category }
+            .mapValues { it.value.sumOf(Expense::amount) }
+            .toList()
+            .sortedByDescending { it.second }
     }
 
     Scaffold(
-        topBar = { HomeAppBar() },
+        topBar = { HomeAppBar(onNotificationsClick = { showNotificationSheet = true }) },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { navController.navigate(Routes.EXPENSE_FORM) },
@@ -96,31 +134,52 @@ fun HomeScreen(
                 .padding(padding),
             verticalArrangement = Arrangement.spacedBy(Dimens.medium)
         ) {
-            item { BalanceSummary(expenses, settings) }
+            item { 
+                BalanceSummary(
+                    totalIncome = totalIncome,
+                    totalExpense = totalExpense,
+                    settings = settings
+                ) 
+            }
             item { QuickActionsRow(navController) }
-            item { SpendingChartSection() }
+            item { TodayTimeSummaryCard(todaySeconds ?: 0L, navController) }
+            item { SpendingChartSection(spentByCategory = spentByCategory) }
             item { RecentTransactionsHeader(navController) }
             items(recentTransactions) { tx ->
                 TransactionItem(tx, settings)
-                HorizontalDivider()
+                HorizontalDivider(modifier = Modifier.padding(horizontal = Dimens.medium))
             }
+        }
+
+        if (showNotificationSheet) {
+            NotificationSummaryBottomSheet(
+                settings = settings,
+                onDismiss = { showNotificationSheet = false },
+                onOpenSettings = {
+                    showNotificationSheet = false
+                    navController.navigate(Routes.SETTINGS)
+                },
+                onSendTestNotification = {
+                    settingsViewModel.sendTestNotification()
+                }
+            )
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeAppBar() {
+fun HomeAppBar(onNotificationsClick: () -> Unit) {
     CenterAlignedTopAppBar(
         title = {
             Text(
-                stringResource(R.string.dashboard_title), // This might be "Home" or app name
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
+                stringResource(R.string.dashboard_title),
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
             )
         },
         actions = {
-            IconButton(onClick = { /* TODO */ }) { // TODO: Implement notifications action
-                BadgedBox(badge = { Badge { Text("3") } }) { // TODO: Make badge count dynamic
+            IconButton(onClick = onNotificationsClick) {
+                BadgedBox(badge = { Badge { Text("!") } }) {
                     Icon(
                         Icons.Filled.Notifications,
                         contentDescription = stringResource(R.string.notifications),
@@ -132,53 +191,164 @@ fun HomeAppBar() {
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BalanceSummary(expenses: List<Expense>, settings: AppSettings) {
-    val income = remember(expenses) {
-        expenses.filter { it.type == Expense.ExpenseType.INCOME }.sumOf { it.amount }
-    }
-    val spent = remember(expenses) {
-        expenses.filter { it.type == Expense.ExpenseType.EXPENSE }.sumOf { it.amount }
-    }
-    val balance = income - spent
+fun NotificationSummaryBottomSheet(
+    settings: AppSettings,
+    onDismiss: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onSendTestNotification: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Dimens.medium),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
     ) {
         Column(
-            modifier = Modifier.padding(Dimens.large),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                stringResource(R.string.current_balance),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    Icons.Filled.Notifications,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(28.dp)
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    "Notification Center",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "Current Status",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        if (settings.enableNotifications)
+                            "Daily Alerts active at ${settings.notificationTime} (${settings.weeklyReminderDay.name})"
+                        else
+                            "Notifications are currently disabled",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            Button(
+                onClick = onSendTestNotification,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Filled.Notifications, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Trigger Test Notification")
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedButton(
+                onClick = onOpenSettings,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Filled.Settings, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Configure Notification Settings")
+            }
+        }
+    }
+}
+
+@Composable
+fun BalanceSummary(
+    totalIncome: Double,
+    totalExpense: Double,
+    settings: AppSettings
+) {
+    val balance = totalIncome - totalExpense
+    var isBalanceVisible by remember { mutableStateOf(true) }
+
+    val heroGradient = remember {
+        androidx.compose.ui.graphics.Brush.linearGradient(
+            listOf(Color(0xFF6366F1), Color(0xFF8B5CF6))
+        )
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Dimens.medium)
+            .clip(MaterialTheme.shapes.extraLarge)
+            .background(heroGradient)
+            .padding(Dimens.large)
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    stringResource(R.string.current_balance),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.White.copy(alpha = 0.85f)
+                )
+                Spacer(Modifier.width(6.dp))
+                IconButton(
+                    onClick = { isBalanceVisible = !isBalanceVisible },
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        if (isBalanceVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                        contentDescription = "Toggle Balance Visibility",
+                        tint = Color.White.copy(alpha = 0.85f)
+                    )
+                }
+            }
             Spacer(Modifier.height(Dimens.small))
             Text(
-                CurrencyFormatter.format(balance, settings.defaultCurrency),
+                if (isBalanceVisible) CurrencyFormatter.format(balance, settings.defaultCurrency) else "••••••••",
                 style = MaterialTheme.typography.displaySmall.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 36.sp
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 38.sp
                 ),
-                color = MaterialTheme.colorScheme.onSurface
+                color = Color.White
             )
             Spacer(Modifier.height(Dimens.medium))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 BalanceMetric(
                     title = stringResource(R.string.income),
-                    value = CurrencyFormatter.format(income, settings.defaultCurrency)
+                    value = if (isBalanceVisible) CurrencyFormatter.format(totalIncome, settings.defaultCurrency) else "••••",
+                    isIncome = true,
+                    modifier = Modifier.weight(1f)
                 )
                 BalanceMetric(
                     title = stringResource(R.string.expenses),
-                    value = CurrencyFormatter.format(spent, settings.defaultCurrency)
+                    value = if (isBalanceVisible) CurrencyFormatter.format(totalExpense, settings.defaultCurrency) else "••••",
+                    isIncome = false,
+                    modifier = Modifier.weight(1f)
                 )
             }
         }
@@ -186,18 +356,32 @@ fun BalanceSummary(expenses: List<Expense>, settings: AppSettings) {
 }
 
 @Composable
-fun BalanceMetric(title: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            title,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(Dimens.extraSmall))
-        Text(
-            value,
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-        )
+fun BalanceMetric(
+    title: String,
+    value: String,
+    isIncome: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(MaterialTheme.shapes.medium)
+            .background(Color.White.copy(alpha = 0.18f))
+            .padding(vertical = 12.dp, horizontal = 14.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                title,
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White.copy(alpha = 0.8f)
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                value,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = if (isIncome) Color(0xFF6EE7B7) else Color(0xFFFCA5A5)
+            )
+        }
     }
 }
 
@@ -215,15 +399,71 @@ fun QuickActionsRow(navController: NavController) {
             onClick = { navController.navigate(Routes.EXPENSE_FORM) }
         )
         ActionButton(
-            icon = Icons.Filled.ShoppingCart,
-            label = stringResource(R.string.expenses),
-            onClick = { navController.navigate(Routes.EXPENSE_LIST) }
+            icon = Icons.Filled.Timer,
+            label = "Timer",
+            onClick = { navController.navigate(Routes.TIME_TRACKER) }
+        )
+        ActionButton(
+            icon = Icons.Filled.Refresh,
+            label = "Bills",
+            onClick = { navController.navigate(Routes.SUBSCRIPTIONS) }
         )
         ActionButton(
             icon = Icons.Filled.PieChart,
             label = stringResource(R.string.reports),
             onClick = { navController.navigate(Routes.DASHBOARD) }
         )
+    }
+}
+
+@Composable
+fun TodayTimeSummaryCard(todaySeconds: Long, navController: NavController) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Dimens.medium)
+            .clickable { navController.navigate(Routes.TIME_TRACKER) },
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+    ) {
+        Row(
+            modifier = Modifier.padding(Dimens.medium),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.tertiary),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.Timer,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onTertiary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Spacer(Modifier.width(Dimens.medium))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.tracked_time_today),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+                Text(
+                    formatDuration(todaySeconds),
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    ),
+                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+            }
+            TextButton(onClick = { navController.navigate(Routes.TIME_TRACKER) }) {
+                Text(stringResource(R.string.open_timer))
+            }
+        }
     }
 }
 
@@ -243,7 +483,7 @@ fun ActionButton(icon: ImageVector, label: String, onClick: () -> Unit) {
         ) {
             Icon(
                 icon,
-                contentDescription = label,
+                contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSecondaryContainer,
                 modifier = Modifier.size(24.dp)
             )
@@ -254,39 +494,89 @@ fun ActionButton(icon: ImageVector, label: String, onClick: () -> Unit) {
 }
 
 @Composable
-fun SpendingChartSection() {
+fun SpendingChartSection(spentByCategory: List<Pair<String, Double>>) {
+    val colorScheme = MaterialTheme.colorScheme
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = Dimens.medium),
-        shape = MaterialTheme.shapes.large
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(Dimens.medium)) {
             Text(
                 stringResource(R.string.spending_overview),
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
             )
-            Spacer(Modifier.height(Dimens.medium))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(150.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    stringResource(R.string.chart_visualization),
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                )
-            }
             Spacer(Modifier.height(Dimens.small))
-            Text(
-                stringResource(R.string.spending_insight),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+
+            if (spentByCategory.isNotEmpty()) {
+                AndroidView(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(240.dp)
+                        .padding(top = Dimens.small),
+                    factory = { ctx ->
+                        PieChart(ctx).apply {
+                            setHoleColor(colorScheme.surface.toArgb())
+                            setTransparentCircleColor(colorScheme.surfaceVariant.toArgb())
+                            setEntryLabelColor(colorScheme.onSurface.toArgb())
+                            legend.apply {
+                                verticalAlignment = Legend.LegendVerticalAlignment.BOTTOM
+                                horizontalAlignment = Legend.LegendHorizontalAlignment.CENTER
+                                orientation = Legend.LegendOrientation.HORIZONTAL
+                                textColor = colorScheme.onSurface.toArgb()
+                                isWordWrapEnabled = true
+                            }
+                            description.isEnabled = false
+                            setUsePercentValues(true)
+                            setDrawEntryLabels(false)
+                            animateY(800)
+                            data = createHomeScreenPieData(spentByCategory, colorScheme)
+                        }
+                    },
+                    update = { chart ->
+                        chart.data = createHomeScreenPieData(spentByCategory, colorScheme)
+                        chart.invalidate()
+                    }
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp)
+                        .background(
+                            color = colorScheme.surface.copy(alpha = 0.5f),
+                            shape = MaterialTheme.shapes.medium
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        stringResource(R.string.no_expenses_this_month),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
+    }
+}
+
+private fun createHomeScreenPieData(
+    spentByCategory: List<Pair<String, Double>>,
+    colorScheme: androidx.compose.material3.ColorScheme
+): PieData {
+    val entries = spentByCategory.map { (category, amount) -> PieEntry(amount.toFloat(), category) }
+    val dataSet = PieDataSet(entries, "").apply {
+        colors = PieChartColors.map { it.toArgb() }
+        sliceSpace = 2f
+        yValuePosition = PieDataSet.ValuePosition.OUTSIDE_SLICE
+        valueTextColor = colorScheme.onSurface.toArgb()
+    }
+    return PieData(dataSet).apply {
+        setValueFormatter(PercentFormatter())
+        setValueTextSize(10f)
     }
 }
 
@@ -300,7 +590,7 @@ fun RecentTransactionsHeader(navController: NavController) {
     ) {
         Text(
             stringResource(R.string.recent_transactions),
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
             modifier = Modifier.weight(1f)
         )
         TextButton(onClick = { navController.navigate(Routes.EXPENSE_LIST) }) {
@@ -316,39 +606,40 @@ fun TransactionItem(transaction: Transaction, settings: AppSettings) {
             .fillMaxWidth()
             .padding(horizontal = Dimens.medium),
         shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
     ) {
         Row(modifier = Modifier.padding(Dimens.medium), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(MaterialTheme.shapes.small)
-                    .background(transaction.categoryDisplay.color), // UPDATED: Use categoryDisplay.color
+                    .background(transaction.categoryDisplay.color.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    transaction.categoryDisplay.icon, // UPDATED: Use categoryDisplay.icon
-                    contentDescription = transaction.categoryDisplay.name,
-                    tint = Color.White,
+                    transaction.categoryDisplay.icon,
+                    contentDescription = null,
+                    tint = transaction.categoryDisplay.color,
                     modifier = Modifier.size(20.dp)
                 )
             }
-            Spacer(Modifier.width(Dimens.small))
+            Spacer(Modifier.width(Dimens.medium))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     transaction.title,
-                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium)
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-                Spacer(Modifier.height(Dimens.extraSmall))
                 Text(
-                    "${transaction.categoryDisplay.name} • ${transaction.date}", // UPDATED: Use categoryDisplay.name
+                    "${transaction.categoryDisplay.name} • ${transaction.date}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
                 CurrencyFormatter.format(transaction.amount, settings.defaultCurrency),
-                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.ExtraBold),
                 color = if (transaction.isExpense) MaterialTheme.colorScheme.error
                 else MaterialTheme.colorScheme.primary
             )

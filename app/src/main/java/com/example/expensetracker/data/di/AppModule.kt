@@ -13,13 +13,20 @@ import com.example.expensetracker.data.dao.BudgetDao
 import com.example.expensetracker.data.dao.CategoryDao
 import com.example.expensetracker.data.dao.ExpenseDao
 import com.example.expensetracker.data.dao.SettingsDao
+import com.example.expensetracker.data.dao.TimeEntryDao
 import com.example.expensetracker.data.local.AppDatabase
 import com.example.expensetracker.data.local.Migration1to2
 import com.example.expensetracker.data.local.Migration2to3
 import com.example.expensetracker.data.local.Migration3to4
 import com.example.expensetracker.data.local.Migration4to5
 import com.example.expensetracker.data.local.Migration5to6
-import com.example.expensetracker.data.local.Migration6to7 // NEW: Import the Migration6to7
+import com.example.expensetracker.data.local.Migration6to7
+import com.example.expensetracker.data.local.Migration7to8
+import com.example.expensetracker.data.local.Migration8to9
+import com.example.expensetracker.data.local.Migration9to10
+import com.example.expensetracker.data.local.Migration10to11
+import com.example.expensetracker.data.local.Migration11to12
+import com.example.expensetracker.data.local.Migration12to13
 import com.example.expensetracker.data.repository.BudgetRepository
 import com.example.expensetracker.data.repository.BudgetRepositoryImpl
 import com.example.expensetracker.data.repository.CategoryRepository
@@ -28,6 +35,8 @@ import com.example.expensetracker.data.repository.ExpenseRepository
 import com.example.expensetracker.data.repository.ExpenseRepositoryImpl
 import com.example.expensetracker.data.repository.SettingsRepository
 import com.example.expensetracker.data.repository.SettingsRepositoryImpl
+import com.example.expensetracker.data.repository.TimeRepository
+import com.example.expensetracker.data.repository.TimeRepositoryImpl
 import com.example.expensetracker.data.util.settingsDataStore
 import dagger.Binds
 import dagger.Module
@@ -37,6 +46,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Inject
 import javax.inject.Singleton
+
+import com.example.expensetracker.data.dao.SubscriptionDao
 
 // 1️⃣ Database + DAOs
 @Module
@@ -53,14 +64,10 @@ object DatabaseModule {
         )
             .addMigrations(
                 Migration1to2, Migration2to3, Migration3to4, Migration4to5, Migration5to6,
-                Migration6to7 // NEW: Add Migration6to7
+                Migration6to7, Migration7to8, Migration8to9, Migration9to10, 
+                Migration10to11, Migration11to12, Migration12to13
             )
-            // *** IMPORTANT CHANGE: Addressed deprecation by using explicit parameter ***
-            // This will recreate the database if schema changes and no explicit migration is found.
-            // Useful for development, but wipes user data.
-            .fallbackToDestructiveMigration(true) // Updated to specify 'true'
-            // Removed .fallbackToDestructiveMigrationOnDowngrade(true) as fallbackToDestructiveMigration()
-            // covers both upgrades and downgrades when a migration path is missing.
+            .fallbackToDestructiveMigration(true)
             .build()
     }
 
@@ -68,6 +75,8 @@ object DatabaseModule {
     @Provides fun provideBudgetDao(db: AppDatabase): BudgetDao = db.budgetDao()
     @Provides fun provideCategoryDao(db: AppDatabase): CategoryDao = db.categoryDao()
     @Provides fun provideSettingsDao(db: AppDatabase): SettingsDao = db.settingsDao()
+    @Provides fun provideTimeEntryDao(db: AppDatabase): TimeEntryDao = db.timeEntryDao()
+    @Provides fun provideSubscriptionDao(db: AppDatabase): SubscriptionDao = db.subscriptionDao()
 }
 
 // 2️⃣ Repositories
@@ -76,11 +85,11 @@ object DatabaseModule {
 @Suppress("Unused") // Suppress 'unused' warning for Hilt-bound interfaces
 interface RepositoryModule {
 
-    // @Binds tells Hilt: when someone asks for CategoryRepository, give CategoryRepositoryImpl
     @Binds @Suppress("Unused") fun bindCategoryRepository(impl: CategoryRepositoryImpl): CategoryRepository
     @Binds @Suppress("Unused") fun bindExpenseRepository(impl: ExpenseRepositoryImpl): ExpenseRepository
     @Binds @Suppress("Unused") fun bindBudgetRepository(impl: BudgetRepositoryImpl): BudgetRepository
     @Binds @Suppress("Unused") fun bindSettingsRepository(impl: SettingsRepositoryImpl): SettingsRepository
+    @Binds @Suppress("Unused") fun bindTimeRepository(impl: TimeRepositoryImpl): TimeRepository
 }
 
 // 3️⃣ DataStore & WorkManager
@@ -100,13 +109,11 @@ object AppModule {
 }
 
 // 4️⃣ Custom WorkerFactory (if needed)
-// ⚠ If you don’t use it, you can delete this whole module & factory.
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class WorkerModule {
 
-    // Keep @Multi-binds only if you have custom workers registered elsewhere
-    @Suppress("unused") // keep to avoid warning if not yet used
+    @Suppress("unused")
     @dagger.multibindings.Multibinds
     abstract fun bindWorkerFactories(): Map<Class<out ListenableWorker>, WorkerFactory>
 
@@ -125,7 +132,7 @@ class HiltWorkerFactory @Inject constructor(
     override fun createWorker(
         appContext: Context,
         workerClassName: String,
-        workerParameters: WorkerParameters // ✅ match parent parameter name
+        workerParameters: WorkerParameters
     ): ListenableWorker? {
         val clazz = Class.forName(workerClassName).asSubclass(ListenableWorker::class.java)
         val factory = workerFactories[clazz]

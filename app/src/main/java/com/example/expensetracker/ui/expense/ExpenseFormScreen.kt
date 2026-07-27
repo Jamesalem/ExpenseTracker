@@ -1,7 +1,8 @@
+// ui/expense/ExpenseFormScreen.kt
 package com.example.expensetracker.ui.expense
 
-import android.annotation.SuppressLint
-import android.app.DatePickerDialog
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -17,51 +19,65 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Notes
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Button
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost // NEW: Import SnackbarHost
-import androidx.compose.material3.SnackbarHostState // NEW: Import SnackbarHostState
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect // NEW: Import LaunchedEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.expensetracker.R
 import com.example.expensetracker.data.model.Expense
-import com.example.expensetracker.data.util.CurrencyFormatter
+import com.example.expensetracker.data.util.CurrencyHelper
 import com.example.expensetracker.data.viewmodel.ExpenseViewModel
 import com.example.expensetracker.ui.components.pickers.CurrencyPicker
+import com.example.expensetracker.ui.navigation.Routes
 import com.example.expensetracker.ui.theme.Dimens
 import com.example.expensetracker.ui.theme.Shapes
-import java.text.SimpleDateFormat
-import java.util.Calendar
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
 
-@SuppressLint("RememberReturnType")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExpenseFormScreen(
@@ -69,186 +85,109 @@ fun ExpenseFormScreen(
     expenseVm: ExpenseViewModel = hiltViewModel()
 ) {
     val formState by expenseVm.formState.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() } // NEW: Create SnackbarHostState
-
+    val isEditing by expenseVm.isEditing.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val haptic = LocalHapticFeedback.current
+    val focusManager = LocalFocusManager.current
     val context = LocalContext.current
-    val calendar = remember { Calendar.getInstance() }
-    val dateState = remember { mutableStateOf(Date()) }
 
-    val datePicker = remember {
-        DatePickerDialog(
-            context,
-            { _, y, m, d ->
-                calendar.set(y, m, d)
-                dateState.value = calendar.time
-                expenseVm.updateFormDate(calendar.time)
-            },
-            calendar.get(Calendar.YEAR),
-            calendar.get(Calendar.MONTH),
-            calendar.get(Calendar.DAY_OF_MONTH)
-        )
+    var showDatePicker by remember { mutableStateOf(false) }
+    var amountError by remember { mutableStateOf<String?>(null) }
+    var categoryError by remember { mutableStateOf<String?>(null) }
+
+    val currencySymbol = remember(formState.currencyCode) {
+        CurrencyHelper.allCurrencies.firstOrNull { it.code == formState.currencyCode }?.symbol
+            ?: formState.currencyCode
     }
 
-    // NEW: Initialize form on first composition
+    val dateFormatter = remember { DateTimeFormatter.ofPattern("MMM dd, yyyy", Locale.getDefault()) }
+    val localDate = remember(formState.date) {
+        formState.date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
+    }
+
     LaunchedEffect(Unit) {
-        expenseVm.initForm()
+        if (!isEditing) expenseVm.initForm()
     }
 
-    // NEW: Observe user messages for SnackBar
     LaunchedEffect(expenseVm.userMessage) {
         expenseVm.userMessage.collect { message ->
             snackbarHostState.showSnackbar(message)
-            // Navigate back only after a successful save message is shown
-            // Assuming successful messages implies it's safe to pop back
-            if (message.contains("successfully")) { // Simple check, refine if needed
+            if (message.contains("successfully")) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 navController.popBackStack()
             }
         }
     }
 
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = formState.date.time
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let {
+                        expenseVm.updateFormDate(Date(it))
+                    }
+                    showDatePicker = false
+                }) { Text(stringResource(R.string.ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.new_expense)) },
+                title = { 
+                    Text(
+                        if (isEditing) stringResource(R.string.edit_expense) 
+                        else stringResource(R.string.new_expense_title),
+                        fontWeight = FontWeight.Bold
+                    ) 
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back)
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 actions = {
-                    IconButton(onClick = { navController.navigate("settings") }) {
-                        Icon(
-                            Icons.Default.Settings,
-                            contentDescription = stringResource(R.string.settings)
-                        )
+                    if (!isEditing) {
+                        IconButton(onClick = { navController.navigate(Routes.SETTINGS) }) {
+                            Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings))
+                        }
                     }
                 }
             )
         },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = {
-                    expenseVm.submitExpense()
-                    // REMOVED: navController.popBackStack() is now handled in LaunchedEffect(expenseVm.userMessage)
-                },
-                icon = { Icon(Icons.Default.Add, stringResource(R.string.save_expense)) },
-                text = { Text(stringResource(R.string.save_expense)) },
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) } // NEW: Provide SnackbarHost
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
                 .padding(padding)
-                .padding(Dimens.large),
+                .verticalScroll(rememberScrollState())
+                .padding(Dimens.medium),
             verticalArrangement = Arrangement.spacedBy(Dimens.medium)
         ) {
-            // Amount
-            OutlinedTextField(
-                value = if (formState.amount > 0) formState.amount.toString() else "",
-                onValueChange = {
-                    expenseVm.updateFormAmount(it.toDoubleOrNull() ?: 0.0)
-                },
-                label = { Text(stringResource(R.string.amount)) },
-                leadingIcon = {
-                    Text(
-                        CurrencyFormatter.getSymbol(formState.currencyCode),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                shape = Shapes.large
-            )
-
-            // Currency
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    stringResource(R.string.currency),
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(Modifier.width(Dimens.small))
-                CurrencyPicker(
-                    currencyCode = formState.currencyCode,
-                    onCurrencySelected = { expenseVm.updateFormCurrencyCode(it) },
-                    modifier = Modifier.weight(1.5f)
-                )
-            }
-
-            HorizontalDivider()
-
-            // Date
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    stringResource(R.string.date),
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(Modifier.width(Dimens.small))
-                OutlinedButton(
-                    onClick = { datePicker.show() },
-                    modifier = Modifier.weight(1.5f),
-                    shape = Shapes.large
-                ) {
-                    Text(
-                        SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-                            .format(dateState.value)
-                    )
-                }
-            }
-
-            HorizontalDivider()
-
-            // Category
-            OutlinedTextField(
-                value = formState.category,
-                onValueChange = { expenseVm.updateFormCategory(it) },
-                label = { Text(stringResource(R.string.category)) },
-                leadingIcon = { Icon(Icons.Default.Category, null) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                shape = Shapes.large
-            )
-
-            HorizontalDivider()
-
-            // Note
-            OutlinedTextField(
-                value = formState.note,
-                onValueChange = { expenseVm.updateFormNote(it) },
-                label = { Text(stringResource(R.string.note_optional)) },
-                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Notes, null) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp),
-                shape = Shapes.large
-            )
-
-            // Type
+            // Type Selector
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.spacedBy(Dimens.small)
             ) {
                 FilterChip(
                     selected = formState.type == Expense.ExpenseType.EXPENSE,
-                    onClick = { expenseVm.updateFormType(Expense.ExpenseType.EXPENSE) },
-                    label = { Text(stringResource(R.string.expense)) },
+                    onClick = { 
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        expenseVm.updateFormType(Expense.ExpenseType.EXPENSE) 
+                    },
+                    label = { Text(stringResource(R.string.expense), modifier = Modifier.padding(horizontal = 8.dp)) },
+                    modifier = Modifier.weight(1f),
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.errorContainer,
                         selectedLabelColor = MaterialTheme.colorScheme.onErrorContainer
@@ -256,12 +195,171 @@ fun ExpenseFormScreen(
                 )
                 FilterChip(
                     selected = formState.type == Expense.ExpenseType.INCOME,
-                    onClick = { expenseVm.updateFormType(Expense.ExpenseType.INCOME) },
-                    label = { Text(stringResource(R.string.income)) },
+                    onClick = { 
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        expenseVm.updateFormType(Expense.ExpenseType.INCOME) 
+                    },
+                    label = { Text(stringResource(R.string.income), modifier = Modifier.padding(horizontal = 8.dp)) },
+                    modifier = Modifier.weight(1f),
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
                         selectedLabelColor = MaterialTheme.colorScheme.onTertiaryContainer
                     )
+                )
+            }
+
+            Spacer(Modifier.height(Dimens.small))
+
+            // Amount Input
+            var amountInputText by remember(formState.amount) {
+                mutableStateOf(if (formState.amount > 0) String.format(Locale.getDefault(), "%.2f", formState.amount) else "")
+            }
+
+            OutlinedTextField(
+                value = amountInputText,
+                onValueChange = { input ->
+                    if (input.isEmpty() || input.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
+                        amountInputText = input
+                        expenseVm.updateFormAmount(input.toDoubleOrNull() ?: 0.0)
+                        amountError = if (input.isEmpty() || (input.toDoubleOrNull() ?: 0.0) <= 0.0) context.getString(R.string.invalid_amount_error) else null
+                    }
+                },
+                label = { Text(stringResource(R.string.amount)) },
+                placeholder = { Text("0.00") },
+                isError = amountError != null,
+                supportingText = { amountError?.let { Text(it) } },
+                leadingIcon = {
+                    Text(currencySymbol, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                },
+                trailingIcon = {
+                    if (amountInputText.isNotEmpty()) {
+                        IconButton(onClick = { 
+                            amountInputText = ""
+                            expenseVm.updateFormAmount(0.0)
+                        }) {
+                            Icon(Icons.Default.Clear, contentDescription = stringResource(R.string.backspace))
+                        }
+                    } else {
+                        CurrencyPicker(
+                            currencyCode = formState.currencyCode,
+                            onCurrencySelected = { expenseVm.updateFormCurrencyCode(it) }
+                        )
+                    }
+                },
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Decimal,
+                    imeAction = ImeAction.Next
+                ),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = Shapes.medium
+            )
+
+            // Category Field
+            OutlinedTextField(
+                value = formState.category,
+                onValueChange = { 
+                    expenseVm.updateFormCategory(it)
+                    categoryError = if (it.isBlank()) context.getString(R.string.category_required) else null
+                },
+                label = { Text(stringResource(R.string.category)) },
+                isError = categoryError != null,
+                supportingText = { categoryError?.let { Text(it) } },
+                leadingIcon = { Icon(Icons.Default.Category, null) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = Shapes.medium,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
+            )
+
+            // Preset Categories
+            val presetCategories = remember(formState.type) {
+                if (formState.type == Expense.ExpenseType.INCOME) {
+                    listOf("Salary", "Freelance", "Investment", "Gift", "Business")
+                } else {
+                    listOf("Food", "Rent", "Transport", "Bills", "Health", "Shopping")
+                }
+            }
+
+            androidx.compose.foundation.lazy.LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(Dimens.small),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(presetCategories.size) { idx ->
+                    val cat = presetCategories[idx]
+                    FilterChip(
+                        selected = formState.category.equals(cat, ignoreCase = true),
+                        onClick = { 
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            expenseVm.updateFormCategory(cat)
+                            categoryError = null
+                        },
+                        label = { Text(cat) }
+                    )
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.alpha(0.5f))
+
+            // Date Picker Row
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(Shapes.medium)
+                    .clickable { 
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        showDatePicker = true 
+                    }
+                    .padding(vertical = Dimens.small)
+            ) {
+                Icon(Icons.Default.CalendarMonth, null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(Dimens.medium))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.date), style = MaterialTheme.typography.labelMedium)
+                    Text(localDate.format(dateFormatter), style = MaterialTheme.typography.bodyLarge)
+                }
+                Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+            }
+
+            // Notes Field
+            OutlinedTextField(
+                value = formState.note,
+                onValueChange = { expenseVm.updateFormNote(it) },
+                label = { Text(stringResource(R.string.note_optional)) },
+                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Notes, null) },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3,
+                shape = Shapes.medium,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
+            )
+
+            Spacer(Modifier.height(Dimens.large))
+
+            Button(
+                onClick = {
+                    if (formState.amount <= 0.0) {
+                        amountError = context.getString(R.string.invalid_amount_error)
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    } else if (formState.category.isBlank()) {
+                        categoryError = context.getString(R.string.category_required)
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    } else {
+                        focusManager.clearFocus()
+                        expenseVm.submitExpense()
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(Dimens.buttonHeight),
+                shape = Shapes.medium
+            ) {
+                Icon(Icons.Default.Check, null)
+                Spacer(Modifier.width(Dimens.small))
+                Text(
+                    if (isEditing) stringResource(R.string.update_record) 
+                    else stringResource(R.string.save_transaction), 
+                    fontWeight = FontWeight.Bold
                 )
             }
         }

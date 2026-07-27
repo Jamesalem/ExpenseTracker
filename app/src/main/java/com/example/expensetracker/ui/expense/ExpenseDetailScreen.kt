@@ -1,3 +1,4 @@
+// ui/expense/ExpenseDetailScreen.kt
 package com.example.expensetracker.ui.expense
 
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +16,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Notes
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.CurrencyExchange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
@@ -42,7 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -52,6 +57,7 @@ import com.example.expensetracker.data.model.Expense
 import com.example.expensetracker.data.util.CurrencyFormatter
 import com.example.expensetracker.data.util.DateFormatter
 import com.example.expensetracker.data.viewmodel.ExpenseViewModel
+import com.example.expensetracker.ui.navigation.Routes
 import com.example.expensetracker.ui.theme.Dimens
 import com.example.expensetracker.ui.theme.Shapes
 import com.example.expensetracker.ui.theme.Typography
@@ -99,7 +105,7 @@ fun ExpenseDetailScreen(
                 },
                 actions = {
                     expense?.let {
-                        IconButton(onClick = { navController.navigate("edit/$expenseId") }) {
+                        IconButton(onClick = { navController.navigate(Routes.editRoute(expenseId)) }) {
                             Icon(
                                 Icons.Default.Edit,
                                 contentDescription = stringResource(R.string.edit),
@@ -123,10 +129,6 @@ fun ExpenseDetailScreen(
             }
         } else {
             val e = expense!!
-            // REMOVED: Unused 'date' variable
-            // val date: Date = Date.from(e.date.atStartOfDay(ZoneId.systemDefault()).toInstant())
-
-            // UPDATED: Use category hash code for color generation consistency
             val catColor = remember(e.category) { generateCategoryColor(e.category.hashCode().toLong()) }
 
             Column(
@@ -157,7 +159,6 @@ fun ExpenseDetailScreen(
                         )
                         Spacer(Modifier.height(Dimens.small))
                         Text(
-                            // UPDATED: Use the new CurrencyFormatter.format overload
                             CurrencyFormatter.format(e.amount, e.currencyCode),
                             style = Typography.displaySmall,
                             fontWeight = FontWeight.Bold,
@@ -176,24 +177,24 @@ fun ExpenseDetailScreen(
                 ) {
                     DetailItem(
                         label = stringResource(R.string.date),
-                        value = DateFormatter.formatDate(e.date), // Correctly uses LocalDate
-                        icon = R.drawable.ic_calendar_detail
+                        value = DateFormatter.formatShortDate(e.date),
+                        icon = Icons.Default.CalendarToday
                     )
                     DetailItem(
                         label = stringResource(R.string.currency),
                         value = e.currencyCode,
-                        icon = R.drawable.ic_currency
+                        icon = Icons.Default.CurrencyExchange
                     )
                     DetailItem(
                         label = stringResource(R.string.type),
                         value = e.type.name,
-                        icon = R.drawable.ic_type
+                        icon = Icons.Default.Category
                     )
                     e.note?.takeIf(String::isNotBlank)?.let {
                         DetailItem(
                             label = stringResource(R.string.notes),
                             value = it,
-                            icon = R.drawable.ic_notes_detail
+                            icon = Icons.AutoMirrored.Filled.Notes
                         )
                     }
                 }
@@ -259,13 +260,13 @@ fun ExpenseDetailScreen(
 }
 
 @Composable
-private fun DetailItem(label: String, value: String, icon: Int) {
+private fun DetailItem(label: String, value: String, icon: ImageVector) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth()
     ) {
         Icon(
-            painter = painterResource(icon),
+            imageVector = icon,
             contentDescription = label,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(Dimens.iconM)

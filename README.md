@@ -1,38 +1,47 @@
-# ExpenseTracker
+# ExpenseTracker — Privacy-First Finance & Time Management
 
-A modern Android expense-tracking app built with:
+**Built for the Community, Powered by Privacy.**
 
-- **Jetpack Compose** for UI
-- **Room** for local persistence
-- **Hilt** for dependency injection
-- **Kotlin Coroutines** + **Flow** for async data
-- **MPAndroidChart** for a pie-chart dashboard
-- **Coil** for image loading (optional receipts)
+ExpenseTracker is a modern, high-performance Android application designed to help individuals master their finances and time without compromising their data. This application is provided **free of charge** as a community-driven tool to optimize personal productivity and financial health.
 
-## Features
+## 🌟 Core Pillars
+- **100% Offline:** Your data never leaves your device. No cloud sync, no tracking, no leaks.
+- **Community Focused:** Created to be a robust, free resource for everyone.
+- **Production Ready:** Optimized for battery efficiency, performance, and accessibility.
 
-- List all expenses with swipe-to-delete
-- Add new expenses (amount, date, category, note, currency)
-- View a dashboard of this month’s spending by category
-- Tap an expense to see details & edit
-- Choose from all ISO-4217 currency codes
-- Local database migrations (destructive by default)
+## 🚀 Key Features
 
-## Requirements
+### 💰 Financial Management
+- **Transaction Logging:** Swiftly add Income and Expenses with real-time validation and localized currency support.
+- **Intelligent Search:** Instantly find past records through a high-speed indexed search bar.
+- **Budgeting:** Set monthly budget limits and receive visual status alerts and system notifications.
+- **Recurring Bills:** Manage subscriptions and recurring payments with automated "Bills Due Today" reminders.
 
-- Android Studio Flamingo (or later)
-- Android SDK 34 (compile/target)
-- Java 17+ (for AGP 8.x + Hilt)
-- Gradle 8.11+
+### ⏱️ Productivity & Focus
+- **Time Tracking:** Log work hours directly within the app.
+- **Pomodoro Timer:** Stay focused with a built-in Pomodoro timer featuring customizable durations.
+- **Custom Alerts:** Pick your own notification sounds for timer completions.
 
-## Getting Started
+### 🔒 Security & Data
+- **The Vault:** Protect your records with Biometric (Fingerprint/Face) or PIN-based application locking.
+- **Smart Reminders:** Receive "Logging Nudges" if you forget to record your daily transactions.
+- **Local Backups:** Export and restore your entire database via encrypted-ready JSON files.
 
-1. **Clone** this repo:
-   ```bash
-   git clone https://github.com/Jamesalem/ExpenseTracker.git
-   cd ExpenseTracker
+## 🛠 Tech Stack
+- **UI:** 100% Jetpack Compose for a fluid, modern interface.
+- **Persistence:** Room Database with optimized Indices for large data scaling.
+- **Dependency Injection:** Hilt (Dagger) for robust architecture.
+- **Background Tasks:** WorkManager for battery-efficient reminders.
+- **Analytics:** Offline-only visual insights powered by MPAndroidChart.
+- **Reliability:** Structured logging with Timber.
 
+## 📱 Requirements
+- **Android Version:** Android 8.0 (API 26) or higher.
+- **Target SDK:** 35 (Android 15).
+- **Architecture:** ARMv8, x86_64.
 
-## License
+## 📜 License
+Distributed under the **MIT License**. Created by Jamesalem Digital and Tech Foundation [JDTF] for the global community.
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+---
+*Optimizing the community, one transaction at a time.*

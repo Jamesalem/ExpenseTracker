@@ -1,12 +1,19 @@
-// Expense.kt
+// data/model/Expense.kt
 package com.example.expensetracker.data.model
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
 import java.time.LocalDate
 
-@Entity(tableName = "expenses")
+@Entity(
+    tableName = "expenses",
+    indices = [
+        Index(value = ["date"]),
+        Index(value = ["category"])
+    ]
+)
 @Serializable
 data class Expense(
     @PrimaryKey(autoGenerate = true)
@@ -15,7 +22,7 @@ data class Expense(
     val title: String,
     val amount: Double,
 
-    @Serializable(with = LocalDateSerializer::class) // ← explicitly register your serializer
+    @Serializable(with = LocalDateSerializer::class)
     val date: LocalDate,
 
     val category: String,

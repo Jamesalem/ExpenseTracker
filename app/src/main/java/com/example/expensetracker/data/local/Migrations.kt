@@ -29,7 +29,6 @@ val Migration2to3 = object : Migration(2, 3) {
     }
 }
 
-// No-op migrations to keep version continuity
 val Migration3to4 = object : Migration(3, 4) {
     override fun migrate(db: SupportSQLiteDatabase) { /* no schema change */ }
 }
@@ -83,7 +82,91 @@ val Migration5to6 = object : Migration(5, 6) {
     }
 }
 
-// NEW: No-op migration for version 6 to 7
 val Migration6to7 = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) { /* no schema change */ }
+}
+
+val Migration7to8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS `time_entries` (
+              `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+              `title` TEXT NOT NULL,
+              `description` TEXT,
+              `category` TEXT NOT NULL DEFAULT 'General',
+              `startTimeMillis` INTEGER NOT NULL,
+              `endTimeMillis` INTEGER,
+              `durationSeconds` INTEGER NOT NULL DEFAULT 0,
+              `isRunning` INTEGER NOT NULL DEFAULT 0,
+              `isBillable` INTEGER NOT NULL DEFAULT 0,
+              `hourlyRate` REAL,
+              `associatedExpenseId` INTEGER,
+              `dateString` TEXT NOT NULL
+            )
+        """.trimIndent())
+    }
+}
+
+val Migration8to9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS `subscriptions` (
+              `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+              `title` TEXT NOT NULL,
+              `amount` REAL NOT NULL,
+              `category` TEXT NOT NULL DEFAULT 'Subscriptions',
+              `billingCycle" TEXT NOT NULL DEFAULT 'MONTHLY',
+              `nextDueDateString` TEXT NOT NULL,
+              `note` TEXT,
+              `iconName` TEXT NOT NULL DEFAULT 'Subscriptions',
+              `isActive` INTEGER NOT NULL DEFAULT 1
+            )
+        """.trimIndent())
+    }
+}
+
+val Migration9to10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `categories` ADD COLUMN `type` TEXT NOT NULL DEFAULT 'EXPENSE'")
+    }
+}
+
+val Migration10to11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `app_settings` ADD COLUMN `timerSoundUri` TEXT")
+    }
+}
+
+val Migration11to12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `app_settings` ADD COLUMN `pomodoroDurationMinutes` INTEGER NOT NULL DEFAULT 25")
+    }
+}
+
+val Migration12to13 = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `app_settings` ADD COLUMN `loggingReminderEnabled` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE `app_settings` ADD COLUMN `loggingReminderTime` TEXT NOT NULL DEFAULT '21:00'")
+    }
+}
+
+// NEW: Migration 13 to 14 adds indices for performance boost
+val Migration13to14 = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // Indices for Expense table
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_expenses_date` ON `expenses` (`date`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_expenses_category` ON `expenses` (`category`)")
+        
+        // Index for Subscription table
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_subscriptions_nextDueDateString` ON `subscriptions` (`nextDueDateString`)")
+        
+        // Unique Index for Budget table
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_budgets_periodKey` ON `budgets` (`periodKey`)")
+        
+        // Index for TimeEntry table
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_time_entries_dateString` ON `time_entries` (`dateString`)")
+        
+        // Unique index for Categories name
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_categories_name` ON `categories` (`name`)")
+    }
 }

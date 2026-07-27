@@ -43,10 +43,16 @@ class ExpenseRepositoryImpl @Inject constructor(
     override suspend fun getBetweenDates(start: LocalDate, end: LocalDate): List<Expense> =
         dao.getBetweenDates(start, end)
 
+    override suspend fun getTotalSpentBetween(start: LocalDate, end: LocalDate): Double =
+        dao.getTotalSpentBetween(start, end) ?: 0.0
+
     override suspend fun replaceAllExpenses(expenses: List<Expense>) =
         dao.replaceAllExpenses(expenses)
 
     override suspend fun deleteAllExpenses() {
         dao.deleteAll()
     }
+
+    override suspend fun hasIncome(): Boolean =
+        dao.countIncomeEntries() > 0
 }

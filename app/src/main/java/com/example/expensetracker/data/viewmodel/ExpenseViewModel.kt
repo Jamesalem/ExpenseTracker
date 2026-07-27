@@ -1,21 +1,25 @@
 package com.example.expensetracker.data.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.expensetracker.R
 import com.example.expensetracker.data.model.AppSettings
 import com.example.expensetracker.data.model.Expense
 import com.example.expensetracker.data.repository.ExpenseRepository
 import com.example.expensetracker.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow // NEW: Import MutableSharedFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow // NEW: Import SharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow // NEW: Import asSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -27,16 +31,36 @@ import javax.inject.Inject
 @HiltViewModel
 class ExpenseViewModel @Inject constructor(
     private val expenseRepo: ExpenseRepository,
-    private val settingsRepo: SettingsRepository
+    private val settingsRepo: SettingsRepository,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
     // Expose raw expenses stream for lists
-    val expenses: Flow<List<Expense>> = expenseRepo.observeAllExpenses()
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val expenses: Flow<List<Expense>> = searchQuery
+        .flatMapLatest { query ->
+            expenseRepo.observeAllExpenses().map { list ->
+                if (query.isBlank()) list
+                else list.filter { 
+                    it.category.contains(query, ignoreCase = true) || 
+                    (it.note?.contains(query, ignoreCase = true) ?: false)
+                }
+            }
+        }
+
+    // Targeted flows for the Dashboard
+    val recentExpenses: Flow<List<Expense>> = expenseRepo.observeRecentExpenses(4)
+    val totalIncome: Flow<Double> = expenseRepo.observeTotalIncome()
+    val totalExpense: Flow<Double> = expenseRepo.observeTotalExpense()
+
     fun getExpenseById(id: Long): Flow<Expense?> = expenseRepo.observeExpenseById(id)
 
     // Expose UI state
     sealed class ExpenseUiState {
-        data object Loading : ExpenseUiState() // UPDATED: Changed to data object
+        data object Loading : ExpenseUiState()
         data class Success(
             val expenses: List<Expense>,
             val settings: AppSettings
@@ -47,8 +71,8 @@ class ExpenseViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<ExpenseUiState>(ExpenseUiState.Loading)
     val uiState: StateFlow<ExpenseUiState> = _uiState.asStateFlow()
 
-    private val _userMessage = MutableSharedFlow<String>() // NEW: For one-time messages
-    val userMessage: SharedFlow<String> = _userMessage.asSharedFlow() // NEW: Expose as SharedFlow
+    private val _userMessage = MutableSharedFlow<String>()
+    val userMessage: SharedFlow<String> = _userMessage.asSharedFlow()
 
     // Form state
     data class ExpenseFormState(
@@ -64,7 +88,6 @@ class ExpenseViewModel @Inject constructor(
     private val _formState = MutableStateFlow(ExpenseFormState())
     val formState: StateFlow<ExpenseFormState> = _formState.asStateFlow()
 
-    @Suppress("Unused") // ADDED: Suppress warning as it's used internally by submitExpense()
     private val _isEditing = MutableStateFlow(false)
     val isEditing: StateFlow<Boolean> = _isEditing.asStateFlow()
 
@@ -75,29 +98,34 @@ class ExpenseViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun loadData() {
         viewModelScope.launch {
-            settingsRepo.appSettings
-                .flatMapLatest { settings ->
-                    expenseRepo.observeAllExpenses()
-                        .map { expenses -> ExpenseUiState.Success(expenses, settings) }
+            combine(settingsRepo.appSettings, searchQuery) { settings, query ->
+                settings to query
+            }.flatMapLatest { (settings, query) ->
+                expenseRepo.observeAllExpenses().map { list ->
+                    val filtered = if (query.isBlank()) list
+                    else list.filter { 
+                        it.category.contains(query, ignoreCase = true) || 
+                        (it.note?.contains(query, ignoreCase = true) ?: false)
+                    }
+                    ExpenseUiState.Success(filtered, settings)
                 }
-                .catch { e ->
-                    // NEW: Replace with proper error logging in production
-                    // Log.e("ExpenseViewModel", "Error loading expenses", e)
-                    _uiState.value = ExpenseUiState.Error(
-                        "Error loading expenses: ${e.message ?: "Unknown error"}"
+            }
+            .catch { e ->
+                _uiState.value = ExpenseUiState.Error("Error loading expenses: ${e.message}")
+            }
+            .collect { state ->
+                _uiState.value = state
+                if (_formState.value.currencyCode == "USD") {
+                    _formState.value = _formState.value.copy(
+                        currencyCode = (state as? ExpenseUiState.Success)?.settings?.defaultCurrency ?: "USD"
                     )
                 }
-                .collect { state ->
-                    _uiState.value = state
-
-                    // initialize form currency on first load
-                    if (_formState.value.currencyCode == "USD") {
-                        _formState.value = _formState.value.copy(
-                            currencyCode = state.settings.defaultCurrency
-                        )
-                    }
-                }
+            }
         }
+    }
+
+    fun onSearchQueryChange(query: String) {
+        _searchQuery.value = query
     }
 
     fun initForm() {
@@ -116,7 +144,6 @@ class ExpenseViewModel @Inject constructor(
             category = expense.category,
             note = expense.note.orEmpty(),
             type = expense.type,
-            // convert LocalDate → Date for the form
             date = Date.from(expense.date.atStartOfDay(ZoneId.systemDefault()).toInstant())
         )
     }
@@ -147,7 +174,7 @@ class ExpenseViewModel @Inject constructor(
 
         val expense = Expense(
             id = if (_isEditing.value) form.id else 0L,
-            title = form.category, // Assuming title is derived from category
+            title = form.category,
             amount = form.amount,
             date = localDate,
             category = form.category,
@@ -158,17 +185,25 @@ class ExpenseViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
+                if (expense.type == Expense.ExpenseType.EXPENSE && !_isEditing.value) {
+                    val hasIncome = expenseRepo.hasIncome()
+                    if (!hasIncome) {
+                        _userMessage.emit(context.getString(R.string.add_income_first))
+                        return@launch
+                    }
+                }
+
                 if (_isEditing.value) {
                     expenseRepo.updateExpense(expense)
-                    _userMessage.emit("Expense updated successfully!") // NEW: Emit success message
+                    val messageRes = if (expense.type == Expense.ExpenseType.INCOME) R.string.income_updated_successfully else R.string.expense_updated_successfully
+                    _userMessage.emit(context.getString(messageRes))
                 } else {
                     expenseRepo.insertExpense(expense)
-                    _userMessage.emit("Expense added successfully!") // NEW: Emit success message
+                    val messageRes = if (expense.type == Expense.ExpenseType.INCOME) R.string.income_added_successfully else R.string.expense_added_successfully
+                    _userMessage.emit(context.getString(messageRes))
                 }
-            } catch (e: Exception) { // UPDATED: Catch and handle specific exceptions
-                // NEW: Replace with proper error logging in production
-                // Log.e("ExpenseViewModel", "Error submitting expense", e)
-                _userMessage.emit("Failed to save expense: ${e.message ?: "Unknown error"}") // NEW: Emit error message
+            } catch (e: Exception) {
+                _userMessage.emit(context.getString(R.string.failed_to_save_expense, e.message ?: "Unknown error"))
             }
         }
     }
@@ -177,11 +212,10 @@ class ExpenseViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 expenseRepo.deleteExpense(expense)
-                _userMessage.emit("Expense deleted successfully!") // NEW: Emit success message
-            } catch (e: Exception) { // UPDATED: Catch and handle specific exceptions
-                // NEW: Replace with proper error logging in production
-                // Log.e("ExpenseViewModel", "Error deleting expense", e)
-                _userMessage.emit("Failed to delete expense: ${e.message ?: "Unknown error"}") // NEW: Emit error message
+                val messageRes = if (expense.type == Expense.ExpenseType.INCOME) R.string.income_deleted_successfully else R.string.expense_deleted_successfully
+                _userMessage.emit(context.getString(messageRes))
+            } catch (e: Exception) {
+                _userMessage.emit(context.getString(R.string.failed_to_delete_expense, e.message ?: "Unknown error"))
             }
         }
     }

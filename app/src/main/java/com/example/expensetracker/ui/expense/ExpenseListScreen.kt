@@ -1,5 +1,7 @@
 package com.example.expensetracker.ui.expense
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,28 +18,37 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator // NEW: Import CircularProgressIndicator
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost // NEW: Import SnackbarHost
-import androidx.compose.material3.SnackbarHostState // NEW: Import SnackbarHostState
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect // NEW: Import LaunchedEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,8 +57,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -56,13 +72,12 @@ import com.example.expensetracker.R
 import com.example.expensetracker.data.model.AppSettings
 import com.example.expensetracker.data.model.Expense
 import com.example.expensetracker.data.util.CurrencyFormatter
+import com.example.expensetracker.data.util.DateFormatter
 import com.example.expensetracker.data.viewmodel.ExpenseViewModel
+import com.example.expensetracker.ui.navigation.Routes
 import com.example.expensetracker.ui.theme.Dimens
 import com.example.expensetracker.ui.theme.Shapes
 import com.example.expensetracker.ui.theme.generateCategoryColor
-import java.text.SimpleDateFormat
-import java.time.ZoneId
-import java.util.Date
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,16 +86,16 @@ fun ExpenseListScreen(
     navController: NavController,
     expenseVm: ExpenseViewModel = hiltViewModel()
 ) {
-    // UPDATED: Collect combined uiState from ExpenseViewModel
     val uiState by expenseVm.uiState.collectAsState()
-    val expenses = (uiState as? ExpenseViewModel.ExpenseUiState.Success)?.expenses.orEmpty()
+    val expenses by expenseVm.expenses.collectAsState(initial = emptyList())
+    val searchQuery by expenseVm.searchQuery.collectAsState()
     val settings = (uiState as? ExpenseViewModel.ExpenseUiState.Success)?.settings ?: AppSettings()
 
     var toDelete by remember { mutableStateOf<Expense?>(null) }
-    val dateFmt = remember { SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()) }
-    val snackbarHostState = remember { SnackbarHostState() } // NEW: Create SnackbarHostState
+    val snackbarHostState = remember { SnackbarHostState() }
+    var isSearchActive by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
 
-    // NEW: Observe user messages for SnackBar
     LaunchedEffect(expenseVm.userMessage) {
         expenseVm.userMessage.collect { message ->
             snackbarHostState.showSnackbar(message)
@@ -89,238 +104,311 @@ fun ExpenseListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.expenses)) },
-                actions = {
-                    IconButton(onClick = { navController.navigate("dashboard") }) {
-                        Icon(
-                            Icons.Filled.PieChart,
-                            contentDescription = stringResource(R.string.dashboard)
-                        )
+            if (isSearchActive) {
+                SearchTopBar(
+                    query = searchQuery,
+                    onQueryChange = { expenseVm.onSearchQueryChange(it) },
+                    onClose = {
+                        isSearchActive = false
+                        expenseVm.onSearchQueryChange("")
                     }
-                }
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { navController.navigate("add") },
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            ) {
-                Icon(
-                    Icons.Filled.Add,
-                    contentDescription = stringResource(R.string.add_expense),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            } else {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.expenses), fontWeight = FontWeight.Bold) },
+                    actions = {
+                        IconButton(onClick = { isSearchActive = true }) {
+                            Icon(Icons.Default.Search, contentDescription = "Search")
+                        }
+                        IconButton(onClick = { navController.navigate(Routes.DASHBOARD) }) {
+                            Icon(Icons.Default.PieChart, contentDescription = "Reports")
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    }
                 )
             }
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) } // NEW: Provide SnackbarHost
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { 
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    navController.navigate(Routes.EXPENSE_FORM) 
+                },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = Shapes.large
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add Transaction")
+            }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Box(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
         ) {
-            when (uiState) { // UPDATED: Handle different UI states
+            when (uiState) {
                 is ExpenseViewModel.ExpenseUiState.Loading -> {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        CircularProgressIndicator()
-                        Spacer(Modifier.height(Dimens.extraSmall))
-                        Text(
-                            stringResource(R.string.loading), // Assuming you have a "loading" string resource
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    }
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 }
-                is ExpenseViewModel.ExpenseUiState.Success -> {
+                else -> {
                     if (expenses.isEmpty()) {
-                        Column(
-                            modifier = Modifier.align(Alignment.Center),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                Icons.Filled.Inbox,
-                                contentDescription = null,
-                                modifier = Modifier.size(64.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(Modifier.height(Dimens.extraSmall))
-                            Text(
-                                stringResource(R.string.no_expenses_title),
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Spacer(Modifier.height(Dimens.small))
-                            Text(
-                                stringResource(R.string.no_expenses_message),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        EmptyExpensesView(
+                            isFiltered = searchQuery.isNotBlank(),
+                            modifier = Modifier.align(Alignment.Center)
+                        )
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(Dimens.medium),
-                            verticalArrangement = Arrangement.spacedBy(Dimens.small)
+                            contentPadding = PaddingValues(bottom = 80.dp),
+                            verticalArrangement = Arrangement.spacedBy(1.dp)
                         ) {
-                            items(
-                                items = expenses,
-                                key = { it.id }
-                            ) { exp ->
-                                ExpenseItem(
-                                    expense = exp,
-                                    decimalPlaces = settings.decimalPlaces,
-                                    useGrouping = settings.useGroupingSeparator,
-                                    dateFormatter = dateFmt,
+                            items(items = expenses, key = { it.id }) { exp ->
+                                SwipeToDeleteItem(
                                     onDelete = { toDelete = exp },
-                                    onClick = { navController.navigate("detail/${exp.id}") }
-                                )
+                                    onClick = { navController.navigate(Routes.detailRoute(exp.id)) }
+                                ) {
+                                    ExpenseItem(
+                                        expense = exp,
+                                        settings = settings
+                                    )
+                                }
                             }
                         }
                     }
                 }
-                is ExpenseViewModel.ExpenseUiState.Error -> {
-                    Column( // UPDATED: Show actual error message
-                        modifier = Modifier.align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            Icons.Filled.Inbox, // Using Inbox as a generic error icon for now
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                        Spacer(Modifier.height(Dimens.extraSmall))
-                        Text(
-                            (uiState as ExpenseViewModel.ExpenseUiState.Error).message, // Display actual error message
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.error // Use error color
-                        )
-                        Spacer(Modifier.height(Dimens.small))
-                        Text(
-                            stringResource(R.string.try_again_message), // Assuming you have a "try again" message
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
             }
 
-
             toDelete?.let { exp ->
-                AlertDialog(
-                    onDismissRequest = { toDelete = null },
-                    title = { Text(stringResource(R.string.delete_expense_title)) },
-                    text = { Text(stringResource(R.string.delete_expense_message)) },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            expenseVm.deleteExpense(exp)
-                            toDelete = null
-                        }) {
-                            Text(
-                                stringResource(R.string.delete),
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
+                DeleteConfirmationDialog(
+                    onConfirm = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        expenseVm.deleteExpense(exp)
+                        toDelete = null
                     },
-                    dismissButton = {
-                        TextButton(onClick = { toDelete = null }) {
-                            Text(stringResource(R.string.cancel))
-                        }
-                    }
+                    onDismiss = { toDelete = null }
                 )
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SwipeToDeleteItem(
+    onDelete: () -> Unit,
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = {
+            if (it == SwipeToDismissBoxValue.EndToStart) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onDelete()
+                false
+            } else false
+        }
+    )
+
+    SwipeToDismissBox(
+        state = dismissState,
+        enableDismissFromStartToEnd = false,
+        backgroundContent = {
+            val color by animateColorAsState(
+                when (dismissState.targetValue) {
+                    SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.error
+                    else -> Color.Transparent
+                }, label = ""
+            )
+            val scale by animateFloatAsState(
+                if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart) 1.2f else 0.8f, label = ""
+            )
+
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(color)
+                    .padding(horizontal = 24.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "Delete",
+                    tint = Color.White,
+                    modifier = Modifier.scale(scale)
+                )
+            }
+        },
+        content = {
+            Box(Modifier.clickable { onClick() }) {
+                content()
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SearchTopBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onClose: () -> Unit
+) {
+    TopAppBar(
+        title = {
+            TextField(
+                value = query,
+                onValueChange = onQueryChange,
+                placeholder = { Text(stringResource(R.string.search_transactions_hint), style = MaterialTheme.typography.bodyLarge) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    disabledContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                )
+            )
+        },
+        navigationIcon = {
+            IconButton(onClick = onClose) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
+        },
+        actions = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(Icons.Default.Clear, contentDescription = "Clear")
+                }
+            }
+        }
+    )
+}
+
+@Composable
+fun EmptyExpensesView(isFiltered: Boolean, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.padding(Dimens.large),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = if (isFiltered) Icons.Default.Search else Icons.Default.Inbox,
+            contentDescription = null,
+            modifier = Modifier.size(80.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+        )
+        Spacer(Modifier.height(Dimens.medium))
+        Text(
+            text = if (isFiltered) stringResource(R.string.no_matches_found) else stringResource(R.string.no_expenses_title),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            text = if (isFiltered) stringResource(R.string.try_different_search) else stringResource(R.string.no_expenses_message),
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+fun DeleteConfirmationDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.delete_transaction_title)) },
+        text = { Text(stringResource(R.string.delete_confirm_message)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+        shape = Shapes.large
+    )
+}
+
 @Composable
 private fun ExpenseItem(
     expense: Expense,
-    decimalPlaces: Int,
-    useGrouping: Boolean,
-    dateFormatter: SimpleDateFormat,
-    onDelete: () -> Unit,
-    onClick: () -> Unit
+    settings: AppSettings
 ) {
-    // convert LocalDate → Date
-    val date = Date.from(expense.date.atStartOfDay(ZoneId.systemDefault()).toInstant())
-    val color = generateCategoryColor(expense.category.hashCode().toLong())
+    val color = remember(expense.category) { generateCategoryColor(expense.category.hashCode().toLong()) }
 
-    Card(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
-        shape = Shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = Dimens.elevationS)
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(vertical = 12.dp, horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.padding(Dimens.medium),
-            verticalAlignment = Alignment.CenterVertically
+        Box(
+            Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(color.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                Modifier
-                    .size(Dimens.iconL)
-                    .clip(Shapes.extraSmall)
-                    .background(color),
-                contentAlignment = Alignment.Center
-            ) {
+            Text(
+                expense.category.take(1).uppercase(),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = color
+            )
+        }
+
+        Spacer(Modifier.width(16.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                expense.category,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                DateFormatter.formatShortDate(expense.date),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                CurrencyFormatter.format(
+                    expense.amount,
+                    expense.currencyCode,
+                    settings.decimalPlaces,
+                    settings.useGroupingSeparator
+                ),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = if (expense.type == Expense.ExpenseType.INCOME)
+                    MaterialTheme.colorScheme.primary
+                else
+                    MaterialTheme.colorScheme.error
+            )
+            if (!expense.note.isNullOrBlank()) {
                 Text(
-                    expense.category.take(1).uppercase(),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimary
+                    expense.note,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
-            }
-
-            Spacer(Modifier.width(Dimens.medium))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(expense.category, style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    dateFormatter.format(date),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                expense.note?.takeIf(String::isNotBlank)?.let {
-                    Text(
-                        it,
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(Dimens.extraSmall)
-            ) {
-                Text(
-                    CurrencyFormatter.format(
-                        expense.amount,
-                        expense.currencyCode,
-                        decimalPlaces,
-                        useGrouping
-                    ),
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = if (expense.type == Expense.ExpenseType.INCOME)
-                        MaterialTheme.colorScheme.tertiary
-                    else
-                        MaterialTheme.colorScheme.onSurface
-                )
-
-                IconButton(onClick = onDelete, modifier = Modifier.size(Dimens.iconM)) {
-                    Icon(
-                        Icons.Filled.Delete,
-                        contentDescription = stringResource(R.string.delete),
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                }
             }
         }
     }

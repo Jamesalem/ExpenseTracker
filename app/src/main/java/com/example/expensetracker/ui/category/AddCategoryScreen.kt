@@ -7,11 +7,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,12 +34,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.expensetracker.R
 import com.example.expensetracker.data.viewmodel.CategoryViewModel
 import com.example.expensetracker.ui.theme.Dimens
+import com.example.expensetracker.ui.theme.Shapes
 import com.example.expensetracker.ui.theme.secondaryButtonColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,28 +55,25 @@ fun AddCategoryScreen(
     var categoryName by remember { mutableStateOf("") }
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val haptic = LocalHapticFeedback.current
 
-    // react to success or error
-    LaunchedEffect(uiState) {
-        when (uiState) {
-            is CategoryViewModel.CategoryUiState.Success -> onBack()
-            is CategoryViewModel.CategoryUiState.Error -> {
-                snackbarHostState.showSnackbar((uiState as CategoryViewModel.CategoryUiState.Error).message)
+    LaunchedEffect(viewModel.userMessage) {
+        viewModel.userMessage.collect { message ->
+            snackbarHostState.showSnackbar(message)
+            if (message.contains("successfully")) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onBack()
             }
-            else -> {}
         }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.add_new_category)) },
+                title = { Text("New Category", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back)
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -82,48 +85,49 @@ fun AddCategoryScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(Dimens.large),
-            verticalArrangement = Arrangement.spacedBy(Dimens.large)
+            verticalArrangement = Arrangement.spacedBy(Dimens.medium)
         ) {
+            Text(
+                "Create a custom category to better organize your transactions.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
             OutlinedTextField(
                 value = categoryName,
                 onValueChange = { categoryName = it },
-                label = { Text(stringResource(R.string.category_name)) },
+                label = { Text("Category Name") },
+                placeholder = { Text("e.g., Subscriptions, Hobby") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 enabled = uiState !is CategoryViewModel.CategoryUiState.Loading,
-                shape = MaterialTheme.shapes.medium
+                shape = Shapes.medium
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                Button(
-                    onClick = onBack,
-                    colors = MaterialTheme.secondaryButtonColors(),
-                    shape = MaterialTheme.shapes.medium,
-                    enabled = uiState !is CategoryViewModel.CategoryUiState.Loading
-                ) {
-                    Text(stringResource(R.string.cancel))
-                }
+            Spacer(Modifier.height(Dimens.medium))
 
-                Spacer(Modifier.width(Dimens.medium))
-
-                Button(
-                    onClick = { viewModel.addCategory(categoryName) },
-                    enabled = categoryName.isNotBlank() &&
-                            uiState !is CategoryViewModel.CategoryUiState.Loading,
-                    shape = MaterialTheme.shapes.medium
-                ) {
-                    if (uiState is CategoryViewModel.CategoryUiState.Loading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(Dimens.iconS),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            strokeWidth = 2.dp
-                        )
+            Button(
+                onClick = { 
+                    if (categoryName.isNotBlank()) {
+                        viewModel.addCategory(categoryName)
                     } else {
-                        Text(stringResource(R.string.add))
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     }
+                },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                enabled = categoryName.isNotBlank() && uiState !is CategoryViewModel.CategoryUiState.Loading,
+                shape = Shapes.medium
+            ) {
+                if (uiState is CategoryViewModel.CategoryUiState.Loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(Icons.Default.Check, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("CREATE CATEGORY", fontWeight = FontWeight.Bold)
                 }
             }
         }

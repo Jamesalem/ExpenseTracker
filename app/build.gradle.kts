@@ -1,6 +1,5 @@
 // app/build.gradle.kts
 
-// Import JvmTarget for the new compilerOptions DSL
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -9,10 +8,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt.android)
-    // *** IMPORTANT CHANGE: Re-added kotlin("kapt") ***
     kotlin("kapt")
-    // *** REMOVED: KSP plugin alias removed for Kapt migration ***
-    // alias(libs.plugins.ksp)
 }
 
 hilt {
@@ -21,16 +17,17 @@ hilt {
 
 android {
     namespace = "com.example.expensetracker"
-    compileSdk = 36
-    buildToolsVersion = "36.0.0"
+    compileSdk = 35 
+    buildToolsVersion = "35.0.0"
 
     defaultConfig {
         applicationId = "com.example.expensetracker"
         minSdk = 25
-        targetSdk = 36
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
         javaCompileOptions {
             annotationProcessorOptions {
                 arguments += mapOf(
@@ -43,7 +40,9 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true 
+            // Correct property name in AGP Kotlin DSL is isShrinkResources
+            // However, to ensure sync success, we'll use the most standard configuration
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -62,21 +61,20 @@ android {
             jvmTarget.set(JvmTarget.JVM_17)
             freeCompilerArgs.addAll(
                 "-Xcontext-receivers",
-                "-opt-in=kotlin.RequiresOptIn",
-                "-language-version", "2.0"
+                "-opt-in=kotlin.RequiresOptIn"
             )
         }
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
         kotlinCompilerExtensionVersion = libs.versions.composeCompiler.get()
     }
 
-    // *** RE-ADDED: Kapt block for correctErrorTypes ***
     kapt {
         correctErrorTypes = true
     }
@@ -87,8 +85,6 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
-    // *** TEMPORARILY COMMENTED OUT: Places SDK ***
-    // implementation(libs.places)
     coreLibraryDesugaring(libs.desugarJdkLibs)
 
     implementation(platform(libs.androidx.compose.bom))
@@ -104,17 +100,12 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
 
     implementation(libs.hilt.android)
-    // *** IMPORTANT CHANGE: Changed ksp to kapt for Hilt compiler ***
     kapt(libs.hilt.android.compiler)
     implementation(libs.androidx.hilt.work)
-    // *** IMPORTANT CHANGE: Changed ksp to kapt for AndroidX Hilt compiler ***
     kapt(libs.androidx.hilt.compiler)
 
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
-    // *** IMPORTANT CHANGE: Changed ksp to kapt for Room compiler ***
-    // The noinspection comment is for IDE, not strictly needed for build but can remain
-    //noinspection KaptUsageInsteadOfKsp
     kapt(libs.androidx.room.compiler)
 
     implementation(libs.androidx.datastore.preferences)
@@ -127,6 +118,7 @@ dependencies {
     implementation(libs.androidx.biometric)
 
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.timber)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

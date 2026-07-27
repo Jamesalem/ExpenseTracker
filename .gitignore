@@ -9,6 +9,7 @@ build/
 *.hprof
 
 # Kotlin
+.kotlin/
 *.kotlin_module
 
 # Local config
@@ -20,3 +21,6 @@ local.properties
 
 # Misc
 .DS_Store
+
+# Room Schemas (Optional: keep if you want to track database history)
+# app/schemas/

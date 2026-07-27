@@ -24,19 +24,22 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -45,14 +48,16 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.expensetracker.R
-import com.example.expensetracker.data.model.AppSettings
 import com.example.expensetracker.data.model.Expense
 import com.example.expensetracker.data.util.CurrencyFormatter
 import com.example.expensetracker.data.viewmodel.DashboardViewModel
 import com.example.expensetracker.ui.budget.BudgetDialog
 import com.example.expensetracker.ui.components.cards.BudgetCard
 import com.example.expensetracker.ui.components.pickers.MonthPicker
+import com.example.expensetracker.ui.navigation.Routes
 import com.example.expensetracker.ui.theme.PieChartColors
+import com.example.expensetracker.ui.theme.Shapes
+import com.example.expensetracker.ui.theme.Typography
 import com.example.expensetracker.ui.theme.progressColor
 import com.github.mikephil.charting.charts.PieChart
 import com.github.mikephil.charting.components.Legend
@@ -66,51 +71,15 @@ import java.time.YearMonth
 @Composable
 fun DashboardScreen(
     navController: NavController,
-    dashboardViewModel: DashboardViewModel = hiltViewModel(), // UPDATED: Inject DashboardViewModel
+    dashboardViewModel: DashboardViewModel = hiltViewModel(),
 ) {
-    // UPDATED: Collect from the new centralized UI state
     val uiState by dashboardViewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val haptic = LocalHapticFeedback.current
 
-    // Derived states from the Success UI state
-    val expenses = remember(uiState) { (uiState as? DashboardViewModel.DashboardUiState.Success)?.expenses.orEmpty() }
-    val budgets = remember(uiState) { (uiState as? DashboardViewModel.DashboardUiState.Success)?.budgets.orEmpty() }
-    val settings = remember(uiState) { (uiState as? DashboardViewModel.DashboardUiState.Success)?.settings ?: AppSettings() }
-
-
-    // Month selector state
-    var selectedYearMonth by remember { mutableStateOf(YearMonth.now()) }
-    val periodKey = remember(selectedYearMonth) {
-        "${selectedYearMonth.year}-${selectedYearMonth.monthValue}"
+    LaunchedEffect(dashboardViewModel.userMessage) {
+        dashboardViewModel.userMessage.collect { snackbarHostState.showSnackbar(it) }
     }
-
-    // Filter this month's expenses
-    val monthExpenses = remember(expenses, selectedYearMonth) {
-        expenses.filter { exp ->
-            YearMonth.from(exp.date) == selectedYearMonth
-        }
-    }
-
-    // Current budget & total spent
-    val currentBudget = remember(budgets, periodKey) {
-        budgets.firstOrNull { it.periodKey == periodKey }?.amount
-    }
-    val totalSpent = remember(monthExpenses) { monthExpenses.sumOf { it.amount } }
-
-    // Dialog states
-    var showBudgetDialog by remember { mutableStateOf(false) }
-    var showCategoryInsights by remember { mutableStateOf(false) }
-
-    // Category breakdown
-    val spentByCategory = remember(monthExpenses) {
-        monthExpenses
-            .groupBy { it.category }
-            .mapValues { it.value.sumOf(Expense::amount) }
-            .toList()
-            .sortedByDescending { it.second }
-    }
-
-    val colorScheme = MaterialTheme.colorScheme
-    val typography = MaterialTheme.typography
 
     Scaffold(
         topBar = {
@@ -118,12 +87,12 @@ fun DashboardScreen(
                 title = {
                     Text(
                         text = stringResource(R.string.dashboard_title),
-                        style = typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold
+                        style = Typography.titleLarge,
+                        fontWeight = FontWeight.Bold
                     )
                 },
                 actions = {
-                    IconButton(onClick = { navController.navigate("expenses") }) {
+                    IconButton(onClick = { navController.navigate(Routes.EXPENSE_LIST) }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.List,
                             contentDescription = stringResource(R.string.view_all_expenses)
@@ -131,7 +100,8 @@ fun DashboardScreen(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -141,163 +111,125 @@ fun DashboardScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // Month picker
-            MonthPicker(
-                yearMonth = selectedYearMonth,
-                onYearMonthChange = { selectedYearMonth = it },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            when (uiState) { // UPDATED: Centralized UI state handling
+            when (val state = uiState) {
                 is DashboardViewModel.DashboardUiState.Loading -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp), // Adjust height as needed to fit loading indicator
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
                     }
                 }
                 is DashboardViewModel.DashboardUiState.Error -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = (uiState as DashboardViewModel.DashboardUiState.Error).message,
-                            color = MaterialTheme.colorScheme.error,
-                            textAlign = TextAlign.Center
-                        )
+                    Box(Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) {
+                        Text(state.message, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
                     }
                 }
                 is DashboardViewModel.DashboardUiState.Success -> {
-                    // All content dependent on loaded data
-                    // Budget summary card
+                    val expenses = state.expenses
+                    val settings = state.settings
+                    val month = state.selectedMonth
+                    val periodKey = "${month.year}-${month.monthValue}"
+                    
+                    val totalSpent = expenses.filter { it.type == Expense.ExpenseType.EXPENSE }.sumOf { it.amount }
+                    val currentBudget = state.budgets.firstOrNull { it.periodKey == periodKey }?.amount
+
+                    MonthPicker(
+                        yearMonth = month,
+                        onYearMonthChange = { 
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            dashboardViewModel.updateSelectedMonth(it) 
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
                     BudgetCard(
                         budget = currentBudget,
                         totalSpent = totalSpent,
                         currencyCode = settings.defaultCurrency,
-                        onEditClick = { showBudgetDialog = true },
+                        onEditClick = { 
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            // In production, navigate to budget settings or show dialog
+                        },
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // Spending summary row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        SummaryCard(
-                            title = stringResource(R.string.total_spent),
-                            value = CurrencyFormatter.format(totalSpent, settings.defaultCurrency),
-                            modifier = Modifier.weight(1f),
-                            backgroundColor = colorScheme.surfaceVariant
-                        )
+                    val spentByCategory = expenses
+                        .filter { it.type == Expense.ExpenseType.EXPENSE }
+                        .groupBy { it.category }
+                        .mapValues { it.value.sumOf(Expense::amount) }
+                        .toList()
+                        .sortedByDescending { it.second }
 
-                        SummaryCard(
-                            title = stringResource(R.string.remaining),
-                            value = CurrencyFormatter.format(
-                                (currentBudget ?: 0.0) - totalSpent,
-                                settings.defaultCurrency
-                            ),
-                            modifier = Modifier.weight(1f),
-                            backgroundColor = colorScheme.surfaceVariant,
-                            valueColor = if ((currentBudget ?: 0.0) - totalSpent >= 0)
-                                colorScheme.primary else colorScheme.error
-                        )
-                    }
-
-                    // Top categories breakdown
+                    SummaryRow(totalSpent, currentBudget, settings)
+                    
                     CategoryBreakdownCard(
                         spentByCategory = spentByCategory,
                         currencyCode = settings.defaultCurrency,
                         totalSpent = totalSpent,
-                        onSeeMoreClick = { showCategoryInsights = true },
-                        modifier = Modifier.fillMaxWidth()
+                        onSeeMoreClick = { /* show category insights */ }
                     )
 
-                    // Pie chart section
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(320.dp),
-                        colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceVariant)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = stringResource(R.string.spending_by_category),
-                                style = typography.titleMedium,
-                                color = colorScheme.onSurface
-                            )
-
-                            if (spentByCategory.isNotEmpty()) {
-                                AndroidView(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(top = 8.dp),
-                                    factory = { ctx ->
-                                        createPieChart(
-                                            context = ctx,
-                                            entries = createPieEntries(spentByCategory),
-                                            colorScheme = colorScheme
-                                        )
-                                    },
-                                    update = { chart ->
-                                        chart.data = createPieData(
-                                            entries = createPieEntries(spentByCategory),
-                                            colorScheme = colorScheme
-                                        )
-                                        chart.invalidate()
-                                    }
-                                )
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = stringResource(R.string.no_expenses_this_month),
-                                        style = typography.bodyMedium,
-                                        color = colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    SpendingChartCard(spentByCategory)
                 }
             }
         }
     }
+}
 
-    // Budget editing dialog
-    if (showBudgetDialog) {
-        BudgetDialog(
-            currentBudget = currentBudget,
-            currencyCode = settings.defaultCurrency,
-            onDismiss = { showBudgetDialog = false },
-            onSave = { amount -> dashboardViewModel.saveBudget(periodKey, amount) } // UPDATED: Call DashboardViewModel
+@Composable
+private fun SummaryRow(totalSpent: Double, budget: Double?, settings: com.example.expensetracker.data.model.AppSettings) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        SummaryCard(
+            title = stringResource(R.string.total_spent),
+            value = CurrencyFormatter.format(totalSpent, settings.defaultCurrency),
+            modifier = Modifier.weight(1f),
+            backgroundColor = MaterialTheme.colorScheme.surfaceVariant
         )
-    }
-
-    // Category insights dialog
-    if (showCategoryInsights) {
-        CategoryInsightsDialog(
-            spentByCategory = spentByCategory,
-            currencyCode = settings.defaultCurrency,
-            totalSpent = totalSpent,
-            onDismiss = { showCategoryInsights = false }
+        val remaining = (budget ?: 0.0) - totalSpent
+        SummaryCard(
+            title = stringResource(R.string.remaining),
+            value = CurrencyFormatter.format(remaining, settings.defaultCurrency),
+            modifier = Modifier.weight(1f),
+            backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
+            valueColor = if (remaining >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
         )
     }
 }
 
-// --- Helpers & UI components below ---
+@Composable
+private fun SpendingChartCard(spentByCategory: List<Pair<String, Double>>) {
+    val colorScheme = MaterialTheme.colorScheme
+    Card(
+        modifier = Modifier.fillMaxWidth().height(320.dp),
+        colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = stringResource(R.string.monthly_distribution),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            if (spentByCategory.isNotEmpty()) {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize().padding(top = 8.dp),
+                    factory = { ctx -> createPieChart(ctx, createPieEntries(spentByCategory), colorScheme) },
+                    update = { chart ->
+                        chart.data = createPieData(createPieEntries(spentByCategory), colorScheme)
+                        chart.invalidate()
+                    }
+                )
+            } else {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = stringResource(R.string.no_data_for_month),
+                        color = colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
 
 @Composable
 fun SummaryCard(
@@ -309,7 +241,8 @@ fun SummaryCard(
 ) {
     Card(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = backgroundColor)
+        colors = CardDefaults.cardColors(containerColor = backgroundColor),
+        shape = Shapes.medium
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -317,14 +250,14 @@ fun SummaryCard(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
             Text(
                 text = value,
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.ExtraBold,
                 color = valueColor,
                 textAlign = TextAlign.Center
             )
@@ -340,74 +273,48 @@ fun CategoryBreakdownCard(
     onSeeMoreClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val visibleCategories = remember(spentByCategory) {
-        spentByCategory.take(3)
-    }
-
+    val visibleCategories = remember(spentByCategory) { spentByCategory.take(3) }
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = stringResource(R.string.top_categories),
+                    text = stringResource(R.string.top_spending_categories),
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
+                    fontWeight = FontWeight.Bold
                 )
                 if (spentByCategory.size > 3) {
                     TextButton(onClick = onSeeMoreClick) {
-                        Text(stringResource(R.string.see_more))
+                        Text(stringResource(R.string.details))
                     }
                 }
             }
-
             if (spentByCategory.isEmpty()) {
                 Text(
-                    text = stringResource(R.string.no_expenses_this_month),
+                    text = stringResource(R.string.start_logging_hint),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             } else {
                 visibleCategories.forEach { (category, amount) ->
-                    val percentage = if (totalSpent > 0) (amount / totalSpent) * 100 else 0.0
-                    val progress = amount / totalSpent.coerceAtLeast(1.0)
-
+                    val progress = (amount / totalSpent.coerceAtLeast(1.0)).toFloat()
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = category,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "${"%.1f".format(percentage)}%",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                            Text(category, style = MaterialTheme.typography.bodyMedium)
+                            Text("${"%.1f".format(java.util.Locale.getDefault(), progress * 100)}%", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                         }
                         LinearProgressIndicator(
-                            progress = { progress.toFloat() },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(8.dp),
-                            color = progressColor(progress.toFloat()),
-                            trackColor = MaterialTheme.colorScheme.surface
-                        )
-                        Text(
-                            text = CurrencyFormatter.format(amount, currencyCode),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            progress = { progress },
+                            modifier = Modifier.fillMaxWidth().height(6.dp),
+                            color = progressColor(progress),
+                            trackColor = MaterialTheme.colorScheme.surface,
+                            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
                         )
                     }
                 }
@@ -416,86 +323,8 @@ fun CategoryBreakdownCard(
     }
 }
 
-@Composable
-fun CategoryInsightsDialog(
-    spentByCategory: List<Pair<String, Double>>,
-    currencyCode: String,
-    totalSpent: Double,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = stringResource(R.string.category_breakdown),
-                style = MaterialTheme.typography.titleLarge
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                spentByCategory.forEach { (category, amount) ->
-                    val percentage = if (totalSpent > 0) (amount / totalSpent) * 100 else 0.0
-                    val progress = amount / totalSpent.coerceAtLeast(1.0)
-
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = category,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "${"%.1f".format(percentage)}%",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        LinearProgressIndicator(
-                            progress = { progress.toFloat() },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(8.dp),
-                            color = progressColor(progress.toFloat()),
-                            trackColor = MaterialTheme.colorScheme.surface
-                        )
-                        Row(
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = stringResource(R.string.spent),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = CurrencyFormatter.format(amount, currencyCode),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.close))
-            }
-        },
-        shape = MaterialTheme.shapes.extraLarge
-    )
-}
-
 private fun createPieEntries(spentByCategory: List<Pair<String, Double>>): List<PieEntry> =
-    spentByCategory.map { (category, amount) ->
-        PieEntry(amount.toFloat(), category)
-    }
+    spentByCategory.map { (category, amount) -> PieEntry(amount.toFloat(), category) }
 
 private fun createPieChart(
     context: android.content.Context,
@@ -505,41 +334,29 @@ private fun createPieChart(
     setHoleColor(colorScheme.surface.toArgb())
     setTransparentCircleColor(colorScheme.surfaceVariant.toArgb())
     setEntryLabelColor(colorScheme.onSurface.toArgb())
-    setEntryLabelTextSize(12f)
     legend.apply {
         verticalAlignment = Legend.LegendVerticalAlignment.BOTTOM
         horizontalAlignment = Legend.LegendHorizontalAlignment.CENTER
         orientation = Legend.LegendOrientation.HORIZONTAL
         textColor = colorScheme.onSurface.toArgb()
-        textSize = 12f
         isWordWrapEnabled = true
-        formSize = 12f
     }
     description.isEnabled = false
-    isDrawHoleEnabled = true
-    holeRadius = 45f
-    transparentCircleRadius = 50f
     setUsePercentValues(true)
-    isRotationEnabled = false
     setDrawEntryLabels(false)
-    setTouchEnabled(true)
-    animateY(1000)
+    animateY(800)
     data = createPieData(entries, colorScheme)
-    invalidate()
 }
 
 private fun createPieData(entries: List<PieEntry>, colorScheme: ColorScheme): PieData {
     val dataSet = PieDataSet(entries, "").apply {
         colors = PieChartColors.map { it.toArgb() }
         sliceSpace = 2f
-        valueLinePart1Length = 0.4f
-        valueLinePart2Length = 0.4f
         yValuePosition = PieDataSet.ValuePosition.OUTSIDE_SLICE
-        valueTextSize = 12f
         valueTextColor = colorScheme.onSurface.toArgb()
     }
     return PieData(dataSet).apply {
         setValueFormatter(PercentFormatter())
-        setValueTextSize(12f)
+        setValueTextSize(10f)
     }
 }

@@ -6,6 +6,7 @@ import com.example.expensetracker.data.dao.CategoryDao
 import com.example.expensetracker.data.dao.SettingsDao
 import com.example.expensetracker.data.model.AppSettings
 import com.example.expensetracker.data.model.Category
+import com.example.expensetracker.data.model.Category.CategoryType
 import javax.inject.Inject
 
 class InitialDataPopulator @Inject constructor(
@@ -14,23 +15,33 @@ class InitialDataPopulator @Inject constructor(
 ) {
     @WorkerThread
     suspend fun populateInitialData() {
-        // Only insert default categories if the category table is empty
-        // This prevents re-inserting on subsequent app launches after initial setup
-        if (categoryDao.countCategories() == 0) { // NEW: Check if categories exist
+        if (categoryDao.countCategories() == 0) {
             val defaultCategories = listOf(
-                Category(name = "Food", isCustom = false),
-                Category(name = "Transport", isCustom = false),
-                Category(name = "Housing", isCustom = false),
-                Category(name = "Utilities", isCustom = false),
-                Category(name = "Healthcare", isCustom = false),
-                Category(name = "Entertainment", isCustom = false),
-                Category(name = "Shopping", isCustom = false),
-                Category(name = "Education", isCustom = false)
+                // Preset Income Categories
+                Category(name = "Salary & Wages", isCustom = false, type = CategoryType.INCOME),
+                Category(name = "Freelance & Consulting", isCustom = false, type = CategoryType.INCOME),
+                Category(name = "Investments & Dividends", isCustom = false, type = CategoryType.INCOME),
+                Category(name = "Business Profits", isCustom = false, type = CategoryType.INCOME),
+                Category(name = "Gifts & Grants", isCustom = false, type = CategoryType.INCOME),
+                Category(name = "Rental Income", isCustom = false, type = CategoryType.INCOME),
+                Category(name = "Refunds & Claims", isCustom = false, type = CategoryType.INCOME),
+                Category(name = "Other Income", isCustom = false, type = CategoryType.INCOME),
+
+                // Preset Expense Categories
+                Category(name = "Food & Dining", isCustom = false, type = CategoryType.EXPENSE),
+                Category(name = "Transportation", isCustom = false, type = CategoryType.EXPENSE),
+                Category(name = "Housing & Rent", isCustom = false, type = CategoryType.EXPENSE),
+                Category(name = "Utilities & Bills", isCustom = false, type = CategoryType.EXPENSE),
+                Category(name = "Healthcare & Medical", isCustom = false, type = CategoryType.EXPENSE),
+                Category(name = "Entertainment & Subs", isCustom = false, type = CategoryType.EXPENSE),
+                Category(name = "Shopping & Apparel", isCustom = false, type = CategoryType.EXPENSE),
+                Category(name = "Education & Courses", isCustom = false, type = CategoryType.EXPENSE),
+                Category(name = "Travel & Vacation", isCustom = false, type = CategoryType.EXPENSE),
+                Category(name = "Other Expense", isCustom = false, type = CategoryType.EXPENSE)
             )
             defaultCategories.forEach { categoryDao.insert(it) }
         }
 
-        // Default settings if none exist
         if (settingsDao.getSettings() == null) {
             settingsDao.saveSettings(AppSettings.getDefault())
         }

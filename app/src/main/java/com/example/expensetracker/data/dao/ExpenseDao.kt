@@ -21,6 +21,9 @@ interface ExpenseDao {
     @Query("SELECT * FROM expenses WHERE date BETWEEN :startDate AND :endDate ORDER BY date DESC")
     fun observeBetweenDates(startDate: LocalDate, endDate: LocalDate): Flow<List<Expense>>
 
+    @Query("SELECT * FROM expenses ORDER BY date DESC LIMIT :limit")
+    fun observeRecent(limit: Int): Flow<List<Expense>>
+
     // Single item operations
     @Query("SELECT * FROM expenses WHERE id = :id")
     fun observeById(id: Long): Flow<Expense>
@@ -47,8 +50,22 @@ interface ExpenseDao {
     @Query("SELECT * FROM expenses WHERE date BETWEEN :startDate AND :endDate")
     suspend fun getBetweenDates(startDate: LocalDate, endDate: LocalDate): List<Expense>
 
+    @Query("SELECT SUM(amount) FROM expenses WHERE type = 'EXPENSE' AND date BETWEEN :startDate AND :endDate")
+    suspend fun getTotalSpentBetween(startDate: LocalDate, endDate: LocalDate): Double?
+
+    // Aggregate Observation
+    @Query("SELECT SUM(amount) FROM expenses WHERE type = 'INCOME'")
+    fun observeTotalIncome(): Flow<Double?>
+
+    @Query("SELECT SUM(amount) FROM expenses WHERE type = 'EXPENSE'")
+    fun observeTotalExpense(): Flow<Double?>
+
     @Query("DELETE FROM expenses")
     suspend fun deleteAll()
+
+    // Multi-Currency Math Conversion
+    @Query("UPDATE expenses SET amount = amount * :rate, currencyCode = :newCurrencyCode")
+    suspend fun convertCurrencyAmounts(newCurrencyCode: String, rate: Double)
 
     // Transactions
     @Transaction
@@ -56,4 +73,8 @@ interface ExpenseDao {
         deleteAll()
         insertAll(expenses)
     }
+
+    // Query to count income entries
+    @Query("SELECT COUNT(*) FROM expenses WHERE type = 'INCOME'")
+    suspend fun countIncomeEntries(): Int
 }

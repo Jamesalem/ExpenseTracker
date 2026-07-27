@@ -6,9 +6,7 @@
         <include domain="database" path="."/>
         <include domain="file" path="."/>
 
-        <!-- Exclude sensitive items -->
-        <exclude domain="database" path="expense_database"/>
-        <exclude domain="database" path="budget_database"/>
+        <!-- Exclude sensitive or non-essential items -->
         <exclude domain="file" path="financial_reports/"/>
         <exclude domain="sharedpref" path="user_session.xml"/>
         <exclude domain="sharedpref" path="authentication_tokens.xml"/>
@@ -21,7 +19,6 @@
         <include domain="file" path="."/>
 
         <!-- Exclude highly sensitive items -->
-        <exclude domain="database" path="user_credentials.db"/>
         <exclude domain="sharedpref" path="authentication_tokens.xml"/>
     </device-transfer>
 </data-extraction-rules>

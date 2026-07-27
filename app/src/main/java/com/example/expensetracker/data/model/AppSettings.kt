@@ -11,6 +11,8 @@ import java.time.DayOfWeek
 data class AppSettings(
     @PrimaryKey val id: Long = 1L,
 
+    val hasCompletedOnboarding: Boolean = false,
+
     // Currency Settings
     var defaultCurrency: String = "USD",
     var decimalPlaces: Int = 2,
@@ -28,8 +30,16 @@ data class AppSettings(
 
     // Notifications
     val enableNotifications: Boolean = true,
-    val notificationTime: String = "20:00",  // HH:mm
+    val notificationTime: String = "20:00",  // HH:mm for Budget Summary
     val weeklyReminderDay: DayOfWeek = DayOfWeek.MONDAY,
+    
+    // Daily Logging Reminder
+    val loggingReminderEnabled: Boolean = false,
+    val loggingReminderTime: String = "21:00", // HH:mm
+    
+    // Timer Settings
+    val timerSoundUri: String? = null,
+    val pomodoroDurationMinutes: Int = 25,
 
     // Security
     val useAppLock: Boolean = false,
@@ -43,7 +53,10 @@ data class AppSettings(
 ) {
     init {
         require(notificationTime.matches(Regex("^([01]?\\d|2[0-3]):[0-5]\\d\$"))) {
-            "Invalid time format. Use HH:mm 24‑hour"
+            "Invalid notification time format. Use HH:mm 24‑hour"
+        }
+        require(loggingReminderTime.matches(Regex("^([01]?\\d|2[0-3]):[0-5]\\d\$"))) {
+            "Invalid logging reminder time format. Use HH:mm 24‑hour"
         }
     }
 
