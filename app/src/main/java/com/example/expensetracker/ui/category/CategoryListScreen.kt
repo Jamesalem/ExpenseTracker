@@ -1,20 +1,8 @@
 package com.example.expensetracker.ui.category
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -24,38 +12,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberSwipeToDismissBoxState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -70,7 +31,6 @@ import com.example.expensetracker.data.viewmodel.CategoryViewModel
 import com.example.expensetracker.ui.theme.Dimens
 import com.example.expensetracker.ui.theme.Shapes
 import com.example.expensetracker.ui.theme.generateCategoryColor
-import com.example.expensetracker.ui.theme.secondaryButtonColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,10 +40,20 @@ fun CategoryListScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val categories = (uiState as? CategoryViewModel.CategoryUiState.Success)?.categories.orEmpty()
+    
     var editingCategory by remember { mutableStateOf<Category?>(null) }
     var toDelete by remember { mutableStateOf<Category?>(null) }
+    
     val snackbarHostState = remember { SnackbarHostState() }
     val haptic = LocalHapticFeedback.current
+
+    // Group categories by their type
+    val incomeCategories = remember(categories) {
+        categories.filter { it.type == Category.CategoryType.INCOME || it.type == Category.CategoryType.BOTH }
+    }
+    val expenseCategories = remember(categories) {
+        categories.filter { it.type == Category.CategoryType.EXPENSE || it.type == Category.CategoryType.BOTH }
+    }
 
     LaunchedEffect(viewModel.userMessage) {
         viewModel.userMessage.collect { snackbarHostState.showSnackbar(it) }
@@ -94,7 +64,7 @@ fun CategoryListScreen(
             TopAppBar(
                 title = { Text("Manage Categories", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = { /* Handle back if needed, or pass as param */ }) {
+                    IconButton(onClick = { /* Navigate back if needed */ }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
@@ -126,15 +96,33 @@ fun CategoryListScreen(
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(bottom = 80.dp),
-                            verticalArrangement = Arrangement.spacedBy(1.dp)
+                            contentPadding = PaddingValues(bottom = 80.dp)
                         ) {
-                            items(categories, key = { it.id }) { category ->
-                                SwipeToDeleteCategory(
-                                    onDelete = { toDelete = category },
-                                    category = category,
-                                    onEdit = { editingCategory = it }
-                                )
+                            if (incomeCategories.isNotEmpty()) {
+                                item {
+                                    CategoryHeader("Income Categories")
+                                }
+                                items(incomeCategories, key = { "inc_${it.id}" }) { category ->
+                                    SwipeToDeleteCategory(
+                                        category = category,
+                                        onDelete = { toDelete = category },
+                                        onEdit = { editingCategory = it }
+                                    )
+                                }
+                            }
+                            
+                            if (expenseCategories.isNotEmpty()) {
+                                item {
+                                    Spacer(Modifier.height(16.dp))
+                                    CategoryHeader("Expense Categories")
+                                }
+                                items(expenseCategories, key = { "exp_${it.id}" }) { category ->
+                                    SwipeToDeleteCategory(
+                                        category = category,
+                                        onDelete = { toDelete = category },
+                                        onEdit = { editingCategory = it }
+                                    )
+                                }
                             }
                         }
                     }
@@ -149,9 +137,9 @@ fun CategoryListScreen(
             EditCategoryDialog(
                 category = category,
                 onDismiss = { editingCategory = null },
-                onSave = { newName ->
+                onSave = { newName, newType ->
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    viewModel.updateCategory(category.copy(name = newName))
+                    viewModel.updateCategory(category.copy(name = newName, type = newType))
                     editingCategory = null
                 }
             )
@@ -167,6 +155,22 @@ fun CategoryListScreen(
                 onDismiss = { toDelete = null }
             )
         }
+    }
+}
+
+@Composable
+fun CategoryHeader(title: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
     }
 }
 
@@ -212,12 +216,12 @@ private fun CategoryItem(
 ) {
     val color = remember(category.name) { generateCategoryColor(category.id) }
     Row(
-        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(16.dp),
+        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.size(12.dp).clip(CircleShape).background(color))
         Spacer(Modifier.width(16.dp))
-        Text(category.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        Text(category.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
         IconButton(onClick = { onEdit(category) }, modifier = Modifier.size(32.dp)) {
             Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
         }
@@ -237,7 +241,7 @@ fun DeleteCategoryDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Delete Category") },
-        text = { Text("Are you sure? Expenses in this category will remain, but the category itself will be removed.") },
+        text = { Text("Are you sure? This will remove the category. Transactions already assigned to this category will remain but their category name might be unlinked.") },
         confirmButton = {
             TextButton(onClick = onConfirm) { Text("DELETE", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) }
         },
@@ -248,23 +252,40 @@ fun DeleteCategoryDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
 }
 
 @Composable
-fun EditCategoryDialog(category: Category, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+fun EditCategoryDialog(category: Category, onDismiss: () -> Unit, onSave: (String, Category.CategoryType) -> Unit) {
     var newName by remember { mutableStateOf(category.name) }
+    var selectedType by remember { mutableStateOf(category.type) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Edit Category") },
         text = {
-            OutlinedTextField(
-                value = newName,
-                onValueChange = { newName = it },
-                label = { Text("Category Name") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                shape = Shapes.medium
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    label = { Text("Category Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = Shapes.medium
+                )
+                
+                Text("Category Type", style = MaterialTheme.typography.labelLarge)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // filter BOTH out for simple selection
+                    listOf(Category.CategoryType.INCOME, Category.CategoryType.EXPENSE).forEach { type ->
+                        FilterChip(
+                            selected = selectedType == type,
+                            onClick = { selectedType = type },
+                            label = { Text(type.name, modifier = Modifier.padding(horizontal = 8.dp)) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
         },
         confirmButton = {
-            Button(onClick = { onSave(newName) }, enabled = newName.isNotBlank() && newName != category.name) {
+            Button(onClick = { onSave(newName, selectedType) }, enabled = newName.isNotBlank()) {
                 Text("SAVE")
             }
         },

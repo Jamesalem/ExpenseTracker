@@ -6,11 +6,11 @@ import androidx.lifecycle.viewModelScope
 import com.example.expensetracker.data.model.Category
 import com.example.expensetracker.data.repository.CategoryRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableSharedFlow // NEW: Import MutableSharedFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow // NEW: Import SharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow // NEW: Import asSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
@@ -22,7 +22,7 @@ class CategoryViewModel @Inject constructor(
 ) : ViewModel() {
 
     sealed class CategoryUiState {
-        data object Loading : CategoryUiState() // UPDATED: Changed to data object
+        data object Loading : CategoryUiState()
         data class Success(val categories: List<Category>) : CategoryUiState()
         data class Error(val message: String) : CategoryUiState()
     }
@@ -30,8 +30,8 @@ class CategoryViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<CategoryUiState>(CategoryUiState.Loading)
     val uiState: StateFlow<CategoryUiState> = _uiState.asStateFlow()
 
-    private val _userMessage = MutableSharedFlow<String>() // NEW: For one-time messages
-    val userMessage: SharedFlow<String> = _userMessage.asSharedFlow() // NEW: Expose as SharedFlow
+    private val _userMessage = MutableSharedFlow<String>()
+    val userMessage: SharedFlow<String> = _userMessage.asSharedFlow()
 
     init { loadCategories() }
 
@@ -39,8 +39,6 @@ class CategoryViewModel @Inject constructor(
         viewModelScope.launch {
             repository.getAllCategories()
                 .catch { e ->
-                    // NEW: Replace with proper error logging in production
-                    // Log.e("CategoryViewModel", "Error loading categories", e)
                     _uiState.value = CategoryUiState.Error(
                         "Error loading categories: ${e.message ?: "Unknown error"}"
                     )
@@ -51,17 +49,15 @@ class CategoryViewModel @Inject constructor(
         }
     }
 
-    fun addCategory(name: String) {
+    fun addCategory(name: String, type: Category.CategoryType = Category.CategoryType.EXPENSE) {
         if (name.isBlank()) return
         viewModelScope.launch {
             _uiState.value = CategoryUiState.Loading
             try {
-                repository.insertCategory(Category(name = name.trim()))
-                _userMessage.emit("Category added successfully") // NEW: Emit success message
+                repository.insertCategory(Category(name = name.trim(), type = type))
+                _userMessage.emit("Category added successfully")
                 loadCategories()
             } catch (e: Exception) {
-                // NEW: Replace with proper error logging in production
-                // Log.e("CategoryViewModel", "Failed to add category", e)
                 _uiState.value = CategoryUiState.Error(
                     "Failed to add category: ${e.message ?: "Unknown error"}"
                 )
@@ -74,11 +70,9 @@ class CategoryViewModel @Inject constructor(
             _uiState.value = CategoryUiState.Loading
             try {
                 repository.updateCategory(category)
-                _userMessage.emit("Category updated successfully") // NEW: Emit success message
+                _userMessage.emit("Category updated successfully")
                 loadCategories()
             } catch (e: Exception) {
-                // NEW: Replace with proper error logging in production
-                // Log.e("CategoryViewModel", "Failed to update category", e)
                 _uiState.value = CategoryUiState.Error(
                     "Failed to update category: ${e.message ?: "Unknown error"}"
                 )
@@ -91,11 +85,9 @@ class CategoryViewModel @Inject constructor(
             _uiState.value = CategoryUiState.Loading
             try {
                 repository.deleteCategory(category)
-                _userMessage.emit("Category deleted successfully") // NEW: Emit success message
+                _userMessage.emit("Category deleted successfully")
                 loadCategories()
             } catch (e: Exception) {
-                // NEW: Replace with proper error logging in production
-                // Log.e("CategoryViewModel", "Failed to delete category", e)
                 _uiState.value = CategoryUiState.Error(
                     "Failed to delete category: ${e.message ?: "Unknown error"}"
                 )

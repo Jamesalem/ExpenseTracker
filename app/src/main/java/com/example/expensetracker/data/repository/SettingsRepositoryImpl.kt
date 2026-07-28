@@ -27,7 +27,8 @@ class SettingsRepositoryImpl @Inject constructor(
         ) { dbSettings, prefs ->
             val base = dbSettings ?: AppSettings.getDefault()
 
-            // Merge any DataStore prefs over the database values
+            // Merge DataStore preferences over the database values
+            // We prioritize DataStore for security and UI preferences
             base.copy(
                 themeMode = prefs[PreferenceKeys.THEME_MODE]?.let { ThemeMode.valueOf(it) }
                     ?: base.themeMode,
@@ -38,30 +39,35 @@ class SettingsRepositoryImpl @Inject constructor(
                 weeklyReminderDay = prefs[PreferenceKeys.WEEKLY_REMINDER_DAY]?.let { DayOfWeek.valueOf(it) }
                     ?: base.weeklyReminderDay,
                 useAppLock = prefs[PreferenceKeys.USE_APP_LOCK] ?: base.useAppLock,
-                appLockPin = prefs[PreferenceKeys.APP_LOCK_PIN] ?: base.appLockPin,
+                appLockPin = prefs[PreferenceKeys.APP_LOCK_PIN], // DataStore is the source of truth for PIN
                 useBiometrics = prefs[PreferenceKeys.USE_BIOMETRICS] ?: base.useBiometrics,
-                defaultCurrency = base.defaultCurrency   // always read currency from DB
+                defaultCurrency = base.defaultCurrency
             )
         }
 
     override suspend fun updateSettings(settings: AppSettings) {
-        // Persist full object in Room
+        // Persist full object in Room for backup/general tracking
         settingsDao.saveSettings(settings)
 
-        // Persist DataStore-only prefs
+        // Persist critical prefs in DataStore
         dataStore.edit { prefs ->
             prefs[PreferenceKeys.THEME_MODE] = settings.themeMode.name
             prefs[PreferenceKeys.ENABLE_NOTIFICATIONS] = settings.enableNotifications
             prefs[PreferenceKeys.NOTIFICATION_TIME] = settings.notificationTime
             prefs[PreferenceKeys.WEEKLY_REMINDER_DAY] = settings.weeklyReminderDay.name
             prefs[PreferenceKeys.USE_APP_LOCK] = settings.useAppLock
-            settings.appLockPin?.let { prefs[PreferenceKeys.APP_LOCK_PIN] = it }
             prefs[PreferenceKeys.USE_BIOMETRICS] = settings.useBiometrics
+            
+            // Fix: Explicitly handle PIN removal
+            if (settings.appLockPin != null) {
+                prefs[PreferenceKeys.APP_LOCK_PIN] = settings.appLockPin!!
+            } else {
+                prefs.remove(PreferenceKeys.APP_LOCK_PIN)
+            }
         }
     }
 
     override suspend fun updateCurrency(currencyCode: String) {
-        // Only DB needs updating for currency
         val current = settingsDao.getSettings() ?: AppSettings.getDefault()
         settingsDao.saveSettings(current.copy(defaultCurrency = currencyCode))
     }
