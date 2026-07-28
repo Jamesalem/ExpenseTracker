@@ -22,5 +22,10 @@ local.properties
 # Misc
 .DS_Store
 
+# Built APKs / outputs
+**/build/
+*.apk
+*.aab
+
 # Room Schemas (Optional: keep if you want to track database history)
 # app/schemas/
