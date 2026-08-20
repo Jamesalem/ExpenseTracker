@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Launcher Icon Colors (Premium Modern Palette) -->
-    <color name="launcher_background_gradient_center">#1E1B4B</color> <!-- Rich Royal Dark Blue/Indigo -->
-    <color name="launcher_background_gradient_edge">#0F172A</color>   <!-- Deep Slate Navy -->
-    <color name="launcher_foreground_color">#10B981</color>         <!-- Vibrant Emerald Green -->
-    <color name="launcher_accent_color">#34D399</color>             <!-- Light Mint Accent -->
+    <!-- ExpenseTracker Brand & Launcher Palette -->
+    <color name="launcher_background_gradient_center">#1E1B4B</color> <!-- Luminous Midnight Indigo -->
+    <color name="launcher_background_gradient_edge">#090D16</color>   <!-- Deep Obsidian Black -->
+    <color name="launcher_foreground_color">#10B981</color>         <!-- Electric Emerald Green -->
+    <color name="launcher_accent_color">#06B6D4</color>             <!-- Vibrant Cyan Accent -->
+    <color name="launcher_spark_color">#FBBF24</color>              <!-- Luminous Gold Focus Dot -->
+    <color name="launcher_glow_purple">#6366F1</color>              <!-- Ultraviolet Glow -->
+    <color name="launcher_glow_cyan">#22D3EE</color>                <!-- Neon Cyan Flare -->
 
-    <!-- Existing colors (ensure they are present or integrate these new ones into your existing scheme) -->
+    <!-- Theme Base Colors -->
     <color name="purple_200">#FFBB86FC</color>
     <color name="purple_500">#FF6200EE</color>
     <color name="purple_700">#FF3700B3</color>

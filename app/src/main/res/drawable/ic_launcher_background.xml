@@ -5,20 +5,59 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Radial gradient for a modern, subtle background -->
+    <!-- Base Canvas Clip -->
     <group>
-        <clip-path
-            android:pathData="M0,0h108v108h-108z" />
-        <path
-            android:fillColor="#ffffff">
+        <clip-path android:pathData="M0,0h108v108h-108z" />
+
+        <!-- Deep Obsidian to Royal Midnight Indigo Radial Backdrop -->
+        <path android:pathData="M0,0h108v108h-108z">
             <gradient
                 android:centerX="54"
                 android:centerY="54"
-                android:gradientRadius="70"
+                android:gradientRadius="72"
                 android:type="radial">
-                <item android:color="@color/launcher_background_gradient_center" android:offset="0.0" />
-                <item android:color="@color/launcher_background_gradient_edge" android:offset="1.0" />
+                <item android:color="#241E5E" android:offset="0.0" />
+                <item android:color="#131238" android:offset="0.6" />
+                <item android:color="#080A12" android:offset="1.0" />
             </gradient>
         </path>
+
+        <!-- Upper Right Ambient Cyan Flare -->
+        <path android:pathData="M54,0h54v54h-54z">
+            <gradient
+                android:centerX="85"
+                android:centerY="25"
+                android:gradientRadius="45"
+                android:type="radial">
+                <item android:color="#3506B6D4" android:offset="0.0" />
+                <item android:color="#0006B6D4" android:offset="1.0" />
+            </gradient>
+        </path>
+
+        <!-- Lower Left Ambient Ultraviolet Glow -->
+        <path android:pathData="M0,54h54v54h-54z">
+            <gradient
+                android:centerX="25"
+                android:centerY="85"
+                android:gradientRadius="45"
+                android:type="radial">
+                <item android:color="#306366F1" android:offset="0.0" />
+                <item android:color="#006366F1" android:offset="1.0" />
+            </gradient>
+        </path>
+
+        <!-- Subtle Precision Orbit Watermark Ring -->
+        <path
+            android:pathData="M54,16 A38,38 0 1,1 53.9,16 Z"
+            android:fillColor="#00000000"
+            android:strokeColor="#12FFFFFF"
+            android:strokeWidth="1.2" />
+
+        <!-- Secondary Inner Precision Compass Ring -->
+        <path
+            android:pathData="M54,26 A28,28 0 1,1 53.9,26 Z"
+            android:fillColor="#00000000"
+            android:strokeColor="#08FFFFFF"
+            android:strokeWidth="0.8" />
     </group>
 </vector>
