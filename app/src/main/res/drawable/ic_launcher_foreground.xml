@@ -5,140 +5,139 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Ambient Shadow / Soft Glow Backdrop for 3D Floating Depth -->
+    <!-- ======================================================== -->
+    <!-- 1. 3D FLOATING DROP-SHADOW UNDER EMBLEM                  -->
+    <!-- ======================================================== -->
     <group
         android:translateX="0"
-        android:translateY="2">
-        <!-- Floating Shadow Silhouette -->
+        android:translateY="3">
+        <!-- Letter E Shadow -->
         <path
-            android:pathData="M34,36 H74 M34,36 V72 M34,54 H50 M34,72 H52 M62,36 V72"
-            android:strokeWidth="7"
-            android:strokeColor="#45000000"
-            android:strokeLineCap="round"
-            android:strokeLineJoin="round"
-            android:fillColor="#00000000" />
+            android:pathData="M24,28 L51,28 L51,37 L34,37 L34,49 L47,49 L47,58 L34,58 L34,71 L51,71 L51,80 L24,80 Z"
+            android:fillColor="#55000000" />
+
+        <!-- Bridge Ribbon Shadow -->
+        <path
+            android:pathData="M44,49 L65,28 L72,35 L51,56 Z"
+            android:fillColor="#55000000" />
+
+        <!-- Letter T Shadow -->
+        <path
+            android:pathData="M56,38 L84,38 L84,47 L74,47 L74,80 L65,80 L65,47 L56,47 Z"
+            android:fillColor="#55000000" />
+
+        <!-- Spark Shadow -->
+        <path
+            android:pathData="M70,28 A4,4 0 1,1 69.9,28 Z"
+            android:fillColor="#55000000" />
     </group>
 
-    <!-- Translucent Luminous Medallion / Halo Shield -->
-    <path
-        android:pathData="M54,20 C72,20 86,34 86,54 C86,74 72,88 54,88 C36,88 22,74 22,54 C22,34 36,20 54,20 Z"
-        android:fillColor="#10FFFFFF">
-        <gradient
-            android:startX="22"
-            android:startY="20"
-            android:endX="86"
-            android:endY="88"
-            android:type="linear">
-            <item android:color="#2206B6D4" android:offset="0.0" />
-            <item android:color="#1210B981" android:offset="0.5" />
-            <item android:color="#156366F1" android:offset="1.0" />
-        </gradient>
-    </path>
-
-    <!-- Precision Outer Medallion Border with Emerald-to-Cyan Gradient -->
-    <path
-        android:pathData="M54,20 C72,20 86,34 86,54 C86,74 72,88 54,88 C36,88 22,74 22,54 C22,34 36,20 54,20 Z"
-        android:strokeWidth="1.8"
-        android:strokeColor="#5010B981"
-        android:fillColor="#00000000" />
-
     <!-- ======================================================== -->
-    <!-- PRIMARY BRAND EMBLEM: INTERLOCKED "E" AND "T" MONOGRAM -->
+    <!-- 2. LETTER "E" (PRIMARY FINANCIAL GROWTH & EQUILIBRIUM)    -->
     <!-- ======================================================== -->
-
-    <!-- [LETTER E] - Left Financial Pillar & Tri-tier Energy Bars -->
-    <!-- E Backbone & Top/Bottom Bars -->
+    <!-- E Solid Base Polygon with Emerald-Cyan Gradient -->
     <path
-        android:pathData="M50,36 H34 V72 H52"
-        android:strokeWidth="5.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000">
+        android:pathData="M24,28 L51,28 L51,37 L34,37 L34,49 L47,49 L47,58 L34,58 L34,71 L51,71 L51,80 L24,80 Z">
         <gradient
-            android:startX="34"
-            android:startY="36"
-            android:endX="52"
-            android:endY="72"
+            android:startX="24"
+            android:startY="28"
+            android:endX="51"
+            android:endY="80"
             android:type="linear">
             <item android:color="#10B981" android:offset="0.0" /> <!-- Electric Emerald -->
-            <item android:color="#06B6D4" android:offset="0.5" /> <!-- Bright Cyan -->
+            <item android:color="#06B6D4" android:offset="0.5" /> <!-- Vibrant Cyan -->
             <item android:color="#34D399" android:offset="1.0" /> <!-- Mint Green -->
         </gradient>
     </path>
 
-    <!-- E Middle Pulse Bar -->
+    <!-- E Top Prism Highlight Facet -->
     <path
-        android:pathData="M34,54 H48"
-        android:strokeWidth="5.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000">
+        android:pathData="M24,28 L51,28 L47,32 L28,32 L28,76 L24,80 Z"
+        android:fillColor="#35FFFFFF" />
+
+    <!-- E Razor Bevel Stroke -->
+    <path
+        android:pathData="M24,28 L51,28 L51,37 L34,37 L34,49 L47,49 L47,58 L34,58 L34,71 L51,71 L51,80 L24,80 Z"
+        android:strokeWidth="1.0"
+        android:strokeColor="#70FFFFFF"
+        android:fillColor="#00000000" />
+
+    <!-- ======================================================== -->
+    <!-- 3. DYNAMIC ENERGY BRIDGE RIBBON (CONNECTING E TO SPARK) -->
+    <!-- ======================================================== -->
+    <!-- Diagonal Bridge Polygon -->
+    <path
+        android:pathData="M44,49 L65,28 L72,35 L51,56 Z">
         <gradient
-            android:startX="34"
-            android:startY="54"
-            android:endX="48"
-            android:endY="54"
+            android:startX="44"
+            android:startY="56"
+            android:endX="72"
+            android:endY="28"
             android:type="linear">
-            <item android:color="#06B6D4" android:offset="0.0" />
-            <item android:color="#38BDF8" android:offset="1.0" />
+            <item android:color="#06B6D4" android:offset="0.0" /> <!-- Cyan -->
+            <item android:color="#38BDF8" android:offset="0.5" /> <!-- Sky Blue -->
+            <item android:color="#FBBF24" android:offset="1.0" /> <!-- Gold Glow -->
         </gradient>
     </path>
 
-    <!-- [LETTER T] - Right Tracking Pillar & Horizontal Crossbar -->
-    <!-- T Crossbar -->
+    <!-- Bridge Highlight Edge -->
     <path
-        android:pathData="M52,36 H74"
-        android:strokeWidth="5.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000">
+        android:pathData="M44,49 L65,28"
+        android:strokeWidth="1.2"
+        android:strokeColor="#90FFFFFF"
+        android:fillColor="#00000000" />
+
+    <!-- ======================================================== -->
+    <!-- 4. LETTER "T" (TRACKER, TIME & STABILITY PILLAR)         -->
+    <!-- ======================================================== -->
+    <!-- T Solid Base Polygon with Cyan-Indigo-Emerald Gradient -->
+    <path
+        android:pathData="M56,38 L84,38 L84,47 L74,47 L74,80 L65,80 L65,47 L56,47 Z">
         <gradient
-            android:startX="52"
-            android:startY="36"
-            android:endX="74"
-            android:endY="36"
+            android:startX="56"
+            android:startY="38"
+            android:endX="84"
+            android:endY="80"
             android:type="linear">
             <item android:color="#38BDF8" android:offset="0.0" /> <!-- Sky Blue -->
-            <item android:color="#818CF8" android:offset="1.0" /> <!-- Indigo Flare -->
+            <item android:color="#6366F1" android:offset="0.4" /> <!-- Indigo -->
+            <item android:color="#06B6D4" android:offset="0.8" /> <!-- Cyan -->
+            <item android:color="#10B981" android:offset="1.0" /> <!-- Emerald Base -->
         </gradient>
     </path>
 
-    <!-- T Central Vertical Stem -->
+    <!-- T Top Highlight Facet -->
     <path
-        android:pathData="M63,36 V72"
-        android:strokeWidth="5.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000">
-        <gradient
-            android:startX="63"
-            android:startY="36"
-            android:endX="63"
-            android:endY="72"
-            android:type="linear">
-            <item android:color="#818CF8" android:offset="0.0" /> <!-- Indigo -->
-            <item android:color="#06B6D4" android:offset="0.5" /> <!-- Cyan -->
-            <item android:color="#10B981" android:offset="1.0" /> <!-- Emerald -->
-        </gradient>
-    </path>
+        android:pathData="M56,38 L84,38 L80,42 L70,42 L70,76 L65,80 L65,47 L56,47 Z"
+        android:fillColor="#25FFFFFF" />
+
+    <!-- T Razor Bevel Stroke -->
+    <path
+        android:pathData="M56,38 L84,38 L84,47 L74,47 L74,80 L65,80 L65,47 L56,47 Z"
+        android:strokeWidth="1.0"
+        android:strokeColor="#70FFFFFF"
+        android:fillColor="#00000000" />
 
     <!-- ======================================================== -->
-    <!-- LUMINOUS BRAND SPARK: Precision Dot (Focus & Balance)     -->
+    <!-- 5. GOLDEN PRECISION FOCUS SPARK (GOAL & DISCIPLINE)       -->
     <!-- ======================================================== -->
-
-    <!-- Outer Radiant Glow Aura -->
+    <!-- Outer Radiant Glow Halo -->
     <path
-        android:pathData="M74,36 A5,5 0 1,1 73.9,36 Z"
-        android:fillColor="#40FBBF24" />
+        android:pathData="M70,28 A9,9 0 1,1 69.9,28 Z"
+        android:fillColor="#30FBBF24" />
 
-    <!-- Inner Golden Focus Spark Core -->
     <path
-        android:pathData="M74,36 A2.5,2.5 0 1,1 73.9,36 Z"
+        android:pathData="M70,28 A6,6 0 1,1 69.9,28 Z"
+        android:fillColor="#60FBBF24" />
+
+    <!-- Solid Gold Core -->
+    <path
+        android:pathData="M70,28 A3.8,3.8 0 1,1 69.9,28 Z"
         android:fillColor="#FBBF24" />
 
-    <!-- Lower Harmony Balance Dot at (63, 72) -->
+    <!-- White Diamond Specular Center -->
     <path
-        android:pathData="M63,72 A2,2 0 1,1 62.9,72 Z"
-        android:fillColor="#34D399" />
+        android:pathData="M70,28 A1.6,1.6 0 1,1 69.9,28 Z"
+        android:fillColor="#FFFFFF" />
 
 </vector>
