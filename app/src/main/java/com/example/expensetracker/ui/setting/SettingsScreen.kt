@@ -234,6 +234,10 @@ fun SettingsScreen(
                                 onPrivacyPolicyClick = {
                                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Jamesalem/ExpenseTracker/blob/main/PRIVACY_POLICY.md"))
                                     context.startActivity(intent)
+                                },
+                                onTermsOfServiceClick = {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Jamesalem/ExpenseTracker/blob/main/TERMS_OF_SERVICE.md"))
+                                    context.startActivity(intent)
                                 }
                             )
                         }

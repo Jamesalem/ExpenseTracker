@@ -1,39 +1,89 @@
 # Privacy Policy for ExpenseTracker
 
-**Last Updated:** June 2025
+**Effective Date:** August 20, 2026  
+**Last Updated:** August 20, 2026
 
-Jamesalem Digital and Tech Foundation [JDTF] ("we," "us," or "our") built the ExpenseTracker app as an Open Source, community-focused tool. This service is provided at no cost and is intended for use as is.
+Jamesalem Digital and Tech Foundation [JDTF] ("we," "us," or "our") built **ExpenseTracker** as a privacy-first, 100% offline personal finance and productivity management application. We believe your financial data belongs strictly to you.
 
-## 1. 100% Offline Nature
-ExpenseTracker is designed with a "Privacy-First" philosophy. **The application operates entirely offline.** 
-- We do not have servers.
-- We do not collect, store, or transmit your financial data, work logs, or personal information.
-- All data you enter (expenses, income, budgets, time entries) is stored locally on your device's internal storage using an encrypted-ready database.
-
-## 2. Information Collection and Use
-We do not collect any personally identifiable information. Any data entered into the application remains on your device.
-
-## 3. Permissions Usage
-To provide specific features, the app requests the following permissions:
-- **Biometrics (Fingerprint/Face):** Used only to unlock the app locally if you choose to enable the "Vault" feature. We never see or store your biometric templates.
-- **Notifications:** Used to send you budget alerts, bill reminders, and logging nudges.
-- **Vibrate:** Used to provide tactile feedback for UI interactions.
-- **Storage/File Access:** Only used if you manually choose to "Export" or "Restore" a backup file.
-
-## 4. Data Sharing
-Since we do not collect your data, we cannot and do not share it with any third parties. Your data is never sold, traded, or used for advertising.
-
-## 5. Security
-The security of your data relies on the security of your device. We recommend using the built-in "App Lock" (PIN/Biometric) feature provided in the settings to protect your records from unauthorized local access.
-
-## 6. Children’s Privacy
-These Services do not address anyone under the age of 13. We do not knowingly collect personally identifiable information from children.
-
-## 7. Changes to This Privacy Policy
-We may update our Privacy Policy from time to time. Since the app is offline, we recommend checking the "About" section or our GitHub repository for updates.
-
-## 8. Contact Us
-If you have any questions or suggestions about our Privacy Policy, do not hesitate to contact us through our official GitHub repository.
+This Privacy Policy explains how ExpenseTracker operates, how your data is handled, and why your privacy is guaranteed.
 
 ---
-*This policy is designed to comply with Google Play's Data Safety requirements for offline applications.*
+
+## 1. 100% Offline & Zero-Collection Guarantee
+
+ExpenseTracker is architected from the ground up to operate **completely offline without internet connectivity**.
+
+* **No Remote Servers:** We do not own, operate, or maintain any backend servers, databases, or cloud processing infrastructure for this application.
+* **No Network Permission:** The `android.permission.INTERNET` permission is completely absent from the application manifest. The app is physically incapable of making outbound network requests or transmitting data over the internet.
+* **Zero Telemetry or Analytics:** We do not embed third-party tracking libraries, advertising SDKs, behavioral analytics, or crash telemetry tools.
+* **No Account Required:** You do not need to register, log in, or provide an email address, phone number, or name to use any feature of ExpenseTracker.
+
+---
+
+## 2. Information You Enter & Local Storage
+
+All data entered into ExpenseTracker—including transactions, income, expenses, categories, tags, multi-wallet accounts, budgets, subscriptions, and focus time logs—is stored **locally and exclusively on your physical device** in a private SQLite/Room database (`AppDatabase` v15).
+
+* **On-Device Mathematical Processing:** All financial algorithms, including Cash Flow Forecasting (Holt-Winters), Safe-to-Spend velocity calculations, Anomaly Detection (MAD / Modified Z-Score), Bayesian category predictions, and Financial Health scoring, execute locally on your device's CPU with zero cloud dependencies.
+* **PIN & Vault Security:** If you choose to enable the App Lock/Vault feature, your PIN is never stored in plaintext. It is cryptographically hashed on-device using SHA-256 with a unique 16-byte cryptographically random salt.
+* **Biometric Authentication:** If enabled, biometric authentication (fingerprint/face unlock) utilizes Android's official `androidx.biometric` APIs. Biometric data is processed directly by your device's secure hardware enclave (TEE/Keystore) and is never accessible to the app or developer.
+
+---
+
+## 3. Device Permissions & Purpose
+
+ExpenseTracker requests only the minimal set of operating system permissions strictly necessary to deliver local features:
+
+| Permission | Purpose |
+| :--- | :--- |
+| **`USE_BIOMETRIC` / `USE_FINGERPRINT`** | Authenticates your identity locally on-device to unlock the app vault if enabled. |
+| **`POST_NOTIFICATIONS`** | Delivers scheduled budget thresholds, subscription renewal alerts, and timer completions locally on Android 13+. |
+| **`SCHEDULE_EXACT_ALARM` / `USE_EXACT_ALARM`** | Triggers exact Pomodoro focus session alarms and timer notifications. |
+| **`VIBRATE`** | Provides tactile haptic feedback during stopwatch and timer interactions. |
+| **Storage Access (SAF / Document Picker)** | Used solely when you explicitly tap **Export Backup** or **Restore Backup** via the Android Storage Access Framework. |
+
+---
+
+## 4. Backups & Data Ownership
+
+You maintain 100% ownership and control over your financial records:
+
+1. **Automated Local Backups:** The app features a background `AutoBackupWorker` that periodically dumps an encrypted-ready JSON backup to your app's isolated internal storage.
+2. **Manual Export & Restore:** You can manually export your entire transaction history and configuration to JSON/CSV format at any time and share or store it in your chosen location.
+3. **Data Deletion:** You can permanently erase all application data at any time by clearing the app data in Android Settings or uninstalling the application.
+
+---
+
+## 5. Third-Party Sharing
+
+Because we do not collect, transmit, or store your data on external infrastructure, **we do not sell, rent, monetize, trade, or share any user data with third parties, advertisers, or data brokers.**
+
+---
+
+## 6. Children’s Privacy
+
+ExpenseTracker does not collect personal data from anyone, including children under the age of 13. The application is completely safe for all audiences.
+
+---
+
+## 7. Global Privacy Compliance (GDPR, CCPA/CPRA, UK DPA 2018)
+
+Because ExpenseTracker does not act as a data controller or data processor of user data on remote servers:
+* **GDPR (EU & UK):** Complies with privacy-by-design and data minimization principles. All processing occurs under the personal/household exemption directly on user-owned hardware.
+* **CCPA / CPRA:** No personal information is collected or sold.
+* **Google Play Data Safety:** Fully compliant with Google Play Store Declarations ("No data collected", "No data shared with third parties").
+
+---
+
+## 8. Changes to This Policy
+
+We may update this Privacy Policy to reflect future on-device features or regulatory standards. Updates will be published in our public repository and reflected within the app's **About** section.
+
+---
+
+## 9. Contact & Inquiries
+
+For questions, feedback, or verification of our open-source codebase, visit our official repository:
+
+* **GitHub Repository:** [https://github.com/Jamesalem/ExpenseTracker](https://github.com/Jamesalem/ExpenseTracker)
+* **Organization:** Jamesalem Digital and Tech Foundation [JDTF]
