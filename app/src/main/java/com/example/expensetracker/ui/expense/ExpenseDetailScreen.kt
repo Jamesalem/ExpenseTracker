@@ -190,6 +190,18 @@ fun ExpenseDetailScreen(
                         value = e.type.name,
                         icon = Icons.Default.Category
                     )
+                    DetailItem(
+                        label = "Account / Wallet",
+                        value = e.account,
+                        icon = Icons.Default.CurrencyExchange
+                    )
+                    if (e.tags.isNotBlank()) {
+                        DetailItem(
+                            label = "Tags",
+                            value = e.tags,
+                            icon = Icons.Default.Category
+                        )
+                    }
                     e.note?.takeIf(String::isNotBlank)?.let {
                         DetailItem(
                             label = stringResource(R.string.notes),

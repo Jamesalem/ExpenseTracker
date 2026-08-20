@@ -26,7 +26,7 @@ import com.example.expensetracker.data.model.TimeEntry
         TimeEntry::class,
         Subscription::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = true
 )
 @TypeConverters(Converters::class)

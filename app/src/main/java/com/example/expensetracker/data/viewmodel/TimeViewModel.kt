@@ -7,7 +7,9 @@ import android.content.Intent
 import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.expensetracker.data.math.ProductivityYieldEngine
 import com.example.expensetracker.data.model.TimeEntry
+import com.example.expensetracker.data.repository.ExpenseRepository
 import com.example.expensetracker.data.repository.SettingsRepository
 import com.example.expensetracker.data.repository.TimeRepository
 import com.example.expensetracker.receivers.TimerReceiver
@@ -15,10 +17,12 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
@@ -30,6 +34,7 @@ import javax.inject.Inject
 @HiltViewModel
 class TimeViewModel @Inject constructor(
     private val timeRepository: TimeRepository,
+    private val expenseRepository: ExpenseRepository,
     private val settingsRepository: SettingsRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
@@ -47,6 +52,13 @@ class TimeViewModel @Inject constructor(
 
     val todaySeconds: StateFlow<Long?> = timeRepository.observeTotalSecondsForDate(todayDateString)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+
+    val productivityYield: Flow<ProductivityYieldEngine.ProductivityYieldSummary> = combine(
+        timeRepository.observeAllTimeEntries(),
+        expenseRepository.observeAllExpenses()
+    ) { entries, expenses ->
+        ProductivityYieldEngine.analyzeYield(entries, expenses)
+    }
 
     private var tickerJob: Job? = null
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager

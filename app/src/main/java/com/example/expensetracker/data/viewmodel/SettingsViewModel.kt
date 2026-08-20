@@ -20,6 +20,8 @@ import com.example.expensetracker.data.model.ThemeMode
 import com.example.expensetracker.data.repository.ExpenseRepository
 import com.example.expensetracker.data.repository.SettingsRepository
 import com.example.expensetracker.receivers.TimerReceiver
+import com.example.expensetracker.data.util.SecurityUtil
+import com.example.expensetracker.workers.AutoBackupWorker
 import com.example.expensetracker.workers.LoggingReminderWorker
 import com.example.expensetracker.workers.NotificationWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -143,11 +145,42 @@ class SettingsViewModel @Inject constructor(
     fun setAutoBackup(enabled: Boolean, frequency: BackupFrequency) = viewModelScope.launch {
         val current = appSettings.first()
         updateSettings(current.copy(autoBackupEnabled = enabled, autoBackupFrequency = frequency))
+        scheduleAutoBackup(enabled, frequency)
+    }
+
+    private suspend fun scheduleAutoBackup(enabled: Boolean, frequency: BackupFrequency) {
+        workManager.cancelUniqueWork("auto_backup_work")
+        if (!enabled) return
+
+        try {
+            val intervalDays = when (frequency) {
+                BackupFrequency.DAILY -> 1L
+                BackupFrequency.WEEKLY -> 7L
+                BackupFrequency.MONTHLY -> 30L
+            }
+
+            val constraints = Constraints.Builder()
+                .setRequiresBatteryNotLow(true)
+                .build()
+
+            val workRequest = PeriodicWorkRequestBuilder<AutoBackupWorker>(intervalDays, TimeUnit.DAYS)
+                .setConstraints(constraints)
+                .build()
+
+            workManager.enqueueUniquePeriodicWork(
+                "auto_backup_work",
+                ExistingPeriodicWorkPolicy.UPDATE,
+                workRequest
+            )
+        } catch (e: Exception) {
+            _userMessage.emit("Failed to schedule auto-backup: ${e.message}")
+        }
     }
 
     fun setSecurity(useLock: Boolean, pin: String? = null, useBiometrics: Boolean = false) = viewModelScope.launch {
         val current = appSettings.first()
-        updateSettings(current.copy(useAppLock = useLock, appLockPin = pin, useBiometrics = useBiometrics))
+        val hashedPin = pin?.let { SecurityUtil.hashPin(it) } ?: current.appLockPin
+        updateSettings(current.copy(useAppLock = useLock, appLockPin = hashedPin, useBiometrics = useBiometrics))
     }
 
     fun updateCustomCategories(categories: List<String>) = viewModelScope.launch {

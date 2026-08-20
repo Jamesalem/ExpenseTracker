@@ -41,6 +41,7 @@ import com.example.expensetracker.R
 import com.example.expensetracker.data.model.AppSettings
 import com.example.expensetracker.data.util.BiometricPromptManager
 import com.example.expensetracker.data.viewmodel.SettingsViewModel
+import com.example.expensetracker.ui.navigation.Routes
 import com.example.expensetracker.ui.setting.components.SettingsSectionHeader
 import com.example.expensetracker.ui.setting.dialogs.BackupSettingDialog
 import com.example.expensetracker.ui.setting.dialogs.BudgetSettingDialog
@@ -166,7 +167,7 @@ fun SettingsScreen(
                         item { SettingsSectionHeader("Budget") }
                         item { BudgetSetting(appSettings, { showBudgetDialog = true }) }
                         item { SettingsSectionHeader(stringResource(R.string.categories)) }
-                        item { CategorySetting(appSettings, { showCategoryDialog = true }) }
+                        item { CategorySetting(appSettings, { navController.navigate(Routes.CATEGORIES) }) }
                         item { SettingsSectionHeader(stringResource(R.string.appearance)) }
                         item { AppearanceSetting(appSettings, { showThemeDialog = true }) }
                         item { SettingsSectionHeader(stringResource(R.string.notifications)) }
@@ -197,17 +198,14 @@ fun SettingsScreen(
                             SecuritySetting(
                                 appSettings = appSettings,
                                 onAppLockToggle = { useLock ->
-                                    if (useLock && activity != null) {
-                                        biometricManager?.showBiometricPrompt(
-                                            title = "Confirm Identity",
-                                            subtitle = "Authenticate to enable App Lock",
-                                            onSuccess = {
-                                                viewModel.setSecurity(useLock = true, pin = appSettings.appLockPin, useBiometrics = appSettings.useBiometrics)
-                                            },
-                                            onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
-                                        )
+                                    if (useLock) {
+                                        if (appSettings.appLockPin.isNullOrBlank()) {
+                                            showPinSetupDialog = true
+                                        } else {
+                                            viewModel.setSecurity(useLock = true, pin = appSettings.appLockPin, useBiometrics = appSettings.useBiometrics)
+                                        }
                                     } else {
-                                        viewModel.setSecurity(useLock = false, pin = null, useBiometrics = false)
+                                        viewModel.setSecurity(useLock = false, pin = appSettings.appLockPin, useBiometrics = false)
                                     }
                                 },
                                 onBiometricsToggle = { useBio ->
@@ -349,7 +347,12 @@ fun SettingsScreen(
                 useAppLock = appSettings.useAppLock,
                 useBiometrics = appSettings.useBiometrics,
                 onConfirm = { lockEnabled, bioEnabled ->
-                    viewModel.setSecurity(useLock = lockEnabled, pin = if (lockEnabled) appSettings.appLockPin else null, useBiometrics = bioEnabled)
+                    if (lockEnabled && appSettings.appLockPin.isNullOrBlank()) {
+                        showSecurityDialog = false
+                        showPinSetupDialog = true
+                    } else {
+                        viewModel.setSecurity(useLock = lockEnabled, pin = appSettings.appLockPin, useBiometrics = bioEnabled)
+                    }
                 },
                 onSetupPin = {
                     showSecurityDialog = false
@@ -363,6 +366,7 @@ fun SettingsScreen(
                 onPinSetupComplete = { pin ->
                     viewModel.setSecurity(useLock = true, pin = pin, useBiometrics = appSettings.useBiometrics)
                     showPinSetupDialog = false
+                    Toast.makeText(context, "PIN setup successful!", Toast.LENGTH_SHORT).show()
                 },
                 onDismiss = { showPinSetupDialog = false }
             )

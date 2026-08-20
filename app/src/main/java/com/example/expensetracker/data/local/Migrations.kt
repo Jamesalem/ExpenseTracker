@@ -115,7 +115,7 @@ val Migration8to9 = object : Migration(8, 9) {
               `title` TEXT NOT NULL,
               `amount` REAL NOT NULL,
               `category` TEXT NOT NULL DEFAULT 'Subscriptions',
-              `billingCycle" TEXT NOT NULL DEFAULT 'MONTHLY',
+              `billingCycle` TEXT NOT NULL DEFAULT 'MONTHLY',
               `nextDueDateString` TEXT NOT NULL,
               `note` TEXT,
               `iconName` TEXT NOT NULL DEFAULT 'Subscriptions',
@@ -150,7 +150,7 @@ val Migration12to13 = object : Migration(12, 13) {
     }
 }
 
-// NEW: Migration 13 to 14 adds indices for performance boost
+// Migration 13 to 14 adds indices for performance boost
 val Migration13to14 = object : Migration(13, 14) {
     override fun migrate(db: SupportSQLiteDatabase) {
         // Indices for Expense table
@@ -168,5 +168,13 @@ val Migration13to14 = object : Migration(13, 14) {
         
         // Unique index for Categories name
         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_categories_name` ON `categories` (`name`)")
+    }
+}
+
+// Migration 14 to 15 adds account and tags support
+val Migration14to15 = object : Migration(14, 15) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `expenses` ADD COLUMN `account` TEXT NOT NULL DEFAULT 'Cash'")
+        db.execSQL("ALTER TABLE `expenses` ADD COLUMN `tags` TEXT NOT NULL DEFAULT ''")
     }
 }

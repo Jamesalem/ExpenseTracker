@@ -2,6 +2,8 @@
 package com.example.expensetracker.ui.expense
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,18 +15,26 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Notes
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tag
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -82,10 +92,13 @@ import java.util.Locale
 @Composable
 fun ExpenseFormScreen(
     navController: NavController,
-    expenseVm: ExpenseViewModel = hiltViewModel()
+    expenseVm: ExpenseViewModel = hiltViewModel(),
+    categoryVm: com.example.expensetracker.data.viewmodel.CategoryViewModel = hiltViewModel()
 ) {
     val formState by expenseVm.formState.collectAsState()
     val isEditing by expenseVm.isEditing.collectAsState()
+    val categoryPredictions by expenseVm.categoryPredictions.collectAsState()
+    val categoryUiState by categoryVm.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val haptic = LocalHapticFeedback.current
     val focusManager = LocalFocusManager.current
@@ -104,6 +117,23 @@ fun ExpenseFormScreen(
     val localDate = remember(formState.date) {
         formState.date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
     }
+
+    val dbCategories = (categoryUiState as? com.example.expensetracker.data.viewmodel.CategoryViewModel.CategoryUiState.Success)?.categories.orEmpty()
+    val presetCategories = remember(formState.type, dbCategories) {
+        val filtered = dbCategories.filter {
+            if (formState.type == Expense.ExpenseType.INCOME) {
+                it.type == com.example.expensetracker.data.model.Category.CategoryType.INCOME || it.type == com.example.expensetracker.data.model.Category.CategoryType.BOTH
+            } else {
+                it.type == com.example.expensetracker.data.model.Category.CategoryType.EXPENSE || it.type == com.example.expensetracker.data.model.Category.CategoryType.BOTH
+            }
+        }.map { it.name }
+
+        if (filtered.isNotEmpty()) filtered
+        else if (formState.type == Expense.ExpenseType.INCOME) listOf("Salary", "Freelance", "Investment", "Gift", "Business")
+        else listOf("Food & Dining", "Housing & Rent", "Transportation", "Utilities & Bills", "Healthcare", "Shopping")
+    }
+
+    val accountOptions = listOf("Cash", "Bank Account", "Credit Card", "Savings", "Investment")
 
     LaunchedEffect(Unit) {
         if (!isEditing) expenseVm.initForm()
@@ -255,6 +285,53 @@ fun ExpenseFormScreen(
                 shape = Shapes.medium
             )
 
+            // Title / Merchant Field
+            OutlinedTextField(
+                value = formState.title,
+                onValueChange = { expenseVm.updateFormTitle(it) },
+                label = { Text("Title / Merchant") },
+                placeholder = { Text("e.g. Starbucks, Uber, Rent, Salary") },
+                leadingIcon = { Icon(Icons.Default.Edit, null) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = Shapes.medium,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
+            )
+
+            // Smart Bayesian Prediction Chips
+            AnimatedVisibility(
+                visible = categoryPredictions.isNotEmpty(),
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Smart Suggestion:",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(categoryPredictions) { (cat, confidence) ->
+                            AssistChip(
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    expenseVm.updateFormCategory(cat)
+                                    categoryError = null
+                                },
+                                label = { Text("$cat (${(confidence * 100).toInt()}%)") },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
             // Category Field
             OutlinedTextField(
                 value = formState.category,
@@ -273,20 +350,11 @@ fun ExpenseFormScreen(
             )
 
             // Preset Categories
-            val presetCategories = remember(formState.type) {
-                if (formState.type == Expense.ExpenseType.INCOME) {
-                    listOf("Salary", "Freelance", "Investment", "Gift", "Business")
-                } else {
-                    listOf("Food", "Rent", "Transport", "Bills", "Health", "Shopping")
-                }
-            }
-
-            androidx.compose.foundation.lazy.LazyRow(
+            LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(Dimens.small),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                items(presetCategories.size) { idx ->
-                    val cat = presetCategories[idx]
+                items(presetCategories) { cat ->
                     FilterChip(
                         selected = formState.category.equals(cat, ignoreCase = true),
                         onClick = { 
@@ -300,6 +368,27 @@ fun ExpenseFormScreen(
             }
 
             HorizontalDivider(modifier = Modifier.alpha(0.5f))
+
+            // Account / Wallet Selector
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.AccountBalanceWallet, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Payment Account", style = MaterialTheme.typography.labelMedium)
+                }
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(accountOptions) { acc ->
+                        FilterChip(
+                            selected = formState.account == acc,
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                expenseVm.updateFormAccount(acc)
+                            },
+                            label = { Text(acc) }
+                        )
+                    }
+                }
+            }
 
             // Date Picker Row
             Row(
@@ -322,6 +411,18 @@ fun ExpenseFormScreen(
                 Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
             }
 
+            // Tags Field
+            OutlinedTextField(
+                value = formState.tags,
+                onValueChange = { expenseVm.updateFormTags(it) },
+                label = { Text("Tags (e.g. #trip, #work, #groceries)") },
+                leadingIcon = { Icon(Icons.Default.Tag, null) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = Shapes.medium,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
+            )
+
             // Notes Field
             OutlinedTextField(
                 value = formState.note,
@@ -329,12 +430,12 @@ fun ExpenseFormScreen(
                 label = { Text(stringResource(R.string.note_optional)) },
                 leadingIcon = { Icon(Icons.AutoMirrored.Filled.Notes, null) },
                 modifier = Modifier.fillMaxWidth(),
-                minLines = 3,
+                minLines = 2,
                 shape = Shapes.medium,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
             )
 
-            Spacer(Modifier.height(Dimens.large))
+            Spacer(Modifier.height(Dimens.medium))
 
             Button(
                 onClick = {

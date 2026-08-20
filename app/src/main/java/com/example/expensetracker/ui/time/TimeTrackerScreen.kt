@@ -134,6 +134,8 @@ fun TimeTrackerScreen(
         taskTitle = ""
     }
 
+    val yieldMetrics by timeViewModel.productivityYield.collectAsState(initial = null)
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -202,6 +204,15 @@ fun TimeTrackerScreen(
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             timeViewModel.stopTimer(id)
                         }
+                    )
+                }
+            }
+
+            if (yieldMetrics != null && yieldMetrics!!.totalTrackedHours > 0.0) {
+                item {
+                    ProductivityYieldCard(
+                        yield = yieldMetrics!!,
+                        currency = settings.defaultCurrency
                     )
                 }
             }
@@ -469,4 +480,97 @@ fun formatDuration(totalSeconds: Long): String {
     val minutes = (totalSeconds % 3600) / 60
     val seconds = totalSeconds % 60
     return String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds)
+}
+
+@Composable
+fun ProductivityYieldCard(
+    yield: com.example.expensetracker.data.math.ProductivityYieldEngine.ProductivityYieldSummary,
+    currency: String
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = Shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Productivity & Yield",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(Color(0xFF10B981).copy(alpha = 0.15f))
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        "${String.format(Locale.getDefault(), "%.1f", yield.totalTrackedHours)} hrs logged",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = Color(0xFF10B981)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Effective Hourly Yield (EHY)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(Shapes.medium)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(12.dp)
+                ) {
+                    Column {
+                        Text(
+                            "Effective Hourly Yield",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            CurrencyFormatter.format(yield.overallEffectiveHourlyRate, currency) + "/hr",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                            color = Color(0xFF10B981)
+                        )
+                    }
+                }
+
+                // Top Yielding Category
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(Shapes.medium)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(12.dp)
+                ) {
+                    Column {
+                        Text(
+                            "Top ROI Focus",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            yield.topYieldingCategory ?: "General",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        }
+    }
 }

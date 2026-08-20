@@ -50,6 +50,7 @@ object Routes {
     const val TIME_TRACKER   = "time_tracker"
     const val TIME_LOGS      = "time_logs"
     const val SUBSCRIPTIONS  = "subscriptions"
+    const val HEALTH         = "health"
 
     const val ARG_EXPENSE_ID = "expenseId"
 
@@ -171,7 +172,10 @@ fun AppNavHost(
             }
 
             composable(Routes.CATEGORIES) {
-                CategoryListScreen(onAddCategory = { navController.navigate(Routes.ADD_CATEGORY) })
+                CategoryListScreen(
+                    onAddCategory = { navController.navigate(Routes.ADD_CATEGORY) },
+                    onBack = { navController.popBackStack() }
+                )
             }
 
             composable(Routes.ADD_CATEGORY) {
@@ -188,6 +192,10 @@ fun AppNavHost(
 
             composable(Routes.SUBSCRIPTIONS) {
                 SubscriptionScreen(navController)
+            }
+
+            composable(Routes.HEALTH) {
+                com.example.expensetracker.ui.health.FinancialHealthScreen(navController)
             }
         }
     }

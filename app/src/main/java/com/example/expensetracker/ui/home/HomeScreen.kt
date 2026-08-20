@@ -83,14 +83,21 @@ import com.example.expensetracker.data.viewmodel.SettingsViewModel
 import com.example.expensetracker.data.viewmodel.TimeViewModel
 import com.example.expensetracker.ui.navigation.Routes
 import com.example.expensetracker.ui.theme.Dimens
+import com.example.expensetracker.ui.theme.Shapes
 import com.example.expensetracker.ui.time.formatDuration
+
+import androidx.compose.material.icons.filled.Shield
+import com.example.expensetracker.data.viewmodel.DashboardViewModel
+import com.example.expensetracker.ui.components.cards.HealthScoreCard
+import com.example.expensetracker.ui.components.cards.SafeSpendPulseCard
 
 @Composable
 fun HomeScreen(
     navController: NavController,
     expenseViewModel: ExpenseViewModel = hiltViewModel(),
     settingsViewModel: SettingsViewModel = hiltViewModel(),
-    timeViewModel: TimeViewModel = hiltViewModel()
+    timeViewModel: TimeViewModel = hiltViewModel(),
+    dashboardViewModel: DashboardViewModel = hiltViewModel()
 ) {
     // OPTIMIZED: Use targeted flows instead of full list filtering
     val recentExpenses by expenseViewModel.recentExpenses.collectAsState(initial = emptyList())
@@ -99,6 +106,7 @@ fun HomeScreen(
     val totalExpense by expenseViewModel.totalExpense.collectAsState(initial = 0.0)
     val settings by settingsViewModel.appSettings.collectAsState(initial = AppSettings())
     val todaySeconds by timeViewModel.todaySeconds.collectAsState()
+    val dashboardState by dashboardViewModel.uiState.collectAsState()
 
     var showNotificationSheet by remember { mutableStateOf(false) }
 
@@ -141,6 +149,26 @@ fun HomeScreen(
                     settings = settings
                 ) 
             }
+
+            // Safe-to-Spend Velocity Gauge
+            (dashboardState as? DashboardViewModel.DashboardUiState.Success)?.let { success ->
+                item {
+                    SafeSpendPulseCard(
+                        result = success.safeSpendResult,
+                        currencyCode = settings.defaultCurrency,
+                        modifier = Modifier.padding(horizontal = Dimens.medium)
+                    )
+                }
+
+                item {
+                    HealthScoreCard(
+                        healthScore = success.healthScore,
+                        onClick = { navController.navigate(Routes.HEALTH) },
+                        modifier = Modifier.padding(horizontal = Dimens.medium)
+                    )
+                }
+            }
+
             item { QuickActionsRow(navController) }
             item { TodayTimeSummaryCard(todaySeconds ?: 0L, navController) }
             item { SpendingChartSection(spentByCategory = spentByCategory) }
@@ -413,6 +441,11 @@ fun QuickActionsRow(navController: NavController) {
             label = stringResource(R.string.reports),
             onClick = { navController.navigate(Routes.DASHBOARD) }
         )
+        ActionButton(
+            icon = Icons.Filled.Shield,
+            label = "Health",
+            onClick = { navController.navigate(Routes.HEALTH) }
+        )
     }
 }
 
@@ -631,17 +664,45 @@ fun TransactionItem(transaction: Transaction, settings: AppSettings) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    "${transaction.categoryDisplay.name} • ${transaction.date}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        "${transaction.categoryDisplay.name} • ${transaction.date}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    // Account badge
+                    Box(
+                        modifier = Modifier
+                            .clip(Shapes.extraSmall)
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
+                            .padding(horizontal = 5.dp, vertical = 1.dp)
+                    ) {
+                        Text(
+                            transaction.account,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    if (transaction.tags.isNotBlank()) {
+                        Text(
+                            transaction.tags,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, color = MaterialTheme.colorScheme.primary),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
             Text(
                 CurrencyFormatter.format(transaction.amount, settings.defaultCurrency),
                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.ExtraBold),
                 color = if (transaction.isExpense) MaterialTheme.colorScheme.error
-                else MaterialTheme.colorScheme.primary
+                else Color(0xFF10B981)
             )
         }
     }

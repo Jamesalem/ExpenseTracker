@@ -28,7 +28,9 @@ data class Expense(
     val category: String,
     val note: String? = null,
     val type: ExpenseType = ExpenseType.EXPENSE,
-    val currencyCode: String
+    val currencyCode: String,
+    val account: String = "Cash",
+    val tags: String = ""
 ) {
     @Serializable
     enum class ExpenseType { INCOME, EXPENSE }

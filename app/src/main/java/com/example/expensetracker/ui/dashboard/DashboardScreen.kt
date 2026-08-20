@@ -33,7 +33,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -52,7 +54,11 @@ import com.example.expensetracker.data.model.Expense
 import com.example.expensetracker.data.util.CurrencyFormatter
 import com.example.expensetracker.data.viewmodel.DashboardViewModel
 import com.example.expensetracker.ui.budget.BudgetDialog
+import com.example.expensetracker.ui.components.cards.AnomalyAlertCard
 import com.example.expensetracker.ui.components.cards.BudgetCard
+import com.example.expensetracker.ui.components.cards.CashflowForecastCard
+import com.example.expensetracker.ui.components.cards.HealthScoreCard
+import com.example.expensetracker.ui.components.cards.SafeSpendPulseCard
 import com.example.expensetracker.ui.components.pickers.MonthPicker
 import com.example.expensetracker.ui.navigation.Routes
 import com.example.expensetracker.ui.theme.PieChartColors
@@ -76,6 +82,7 @@ fun DashboardScreen(
     val uiState by dashboardViewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val haptic = LocalHapticFeedback.current
+    var showBudgetDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(dashboardViewModel.userMessage) {
         dashboardViewModel.userMessage.collect { snackbarHostState.showSnackbar(it) }
@@ -123,12 +130,9 @@ fun DashboardScreen(
                     }
                 }
                 is DashboardViewModel.DashboardUiState.Success -> {
-                    val expenses = state.expenses
                     val settings = state.settings
                     val month = state.selectedMonth
                     val periodKey = "${month.year}-${month.monthValue}"
-                    
-                    val totalSpent = expenses.filter { it.type == Expense.ExpenseType.EXPENSE }.sumOf { it.amount }
                     val currentBudget = state.budgets.firstOrNull { it.periodKey == periodKey }?.amount
 
                     MonthPicker(
@@ -142,32 +146,73 @@ fun DashboardScreen(
 
                     BudgetCard(
                         budget = currentBudget,
-                        totalSpent = totalSpent,
+                        totalSpent = state.totalSpent,
                         currencyCode = settings.defaultCurrency,
                         onEditClick = { 
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            // In production, navigate to budget settings or show dialog
+                            showBudgetDialog = true
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    val spentByCategory = expenses
-                        .filter { it.type == Expense.ExpenseType.EXPENSE }
-                        .groupBy { it.category }
-                        .mapValues { it.value.sumOf(Expense::amount) }
-                        .toList()
-                        .sortedByDescending { it.second }
+                    if (showBudgetDialog) {
+                        BudgetDialog(
+                            currentBudget = currentBudget,
+                            currencyCode = settings.defaultCurrency,
+                            onDismiss = { showBudgetDialog = false },
+                            onSave = { newAmount ->
+                                dashboardViewModel.saveBudget(periodKey, newAmount)
+                            }
+                        )
+                    }
 
-                    SummaryRow(totalSpent, currentBudget, settings)
-                    
-                    CategoryBreakdownCard(
-                        spentByCategory = spentByCategory,
+                    // Anomaly Alert if detected
+                    if (state.anomalies.isNotEmpty()) {
+                        AnomalyAlertCard(
+                            anomalies = state.anomalies,
+                            currencyCode = settings.defaultCurrency,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    // Dynamic Safe-to-Spend Velocity & Allowance
+                    SafeSpendPulseCard(
+                        result = state.safeSpendResult,
                         currencyCode = settings.defaultCurrency,
-                        totalSpent = totalSpent,
-                        onSeeMoreClick = { /* show category insights */ }
+                        modifier = Modifier.fillMaxWidth()
                     )
 
-                    SpendingChartCard(spentByCategory)
+                    // Financial Health Score
+                    HealthScoreCard(
+                        healthScore = state.healthScore,
+                        onClick = { navController.navigate(Routes.HEALTH) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // 30-Day Predictive Cash Flow & Runway
+                    CashflowForecastCard(
+                        forecast = state.cashflowForecast,
+                        currencyCode = settings.defaultCurrency,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    FinancialSummaryGrid(
+                        totalIncome = state.totalIncome,
+                        expenseTotal = state.expenseTotal,
+                        billsTotal = state.billsTotal,
+                        totalSpent = state.totalSpent,
+                        budget = currentBudget,
+                        settings = settings
+                    )
+                    
+                    CategoryBreakdownCard(
+                        spentByCategory = state.spentByCategory,
+                        currencyCode = settings.defaultCurrency,
+                        totalSpent = state.totalSpent,
+                        onSeeMoreClick = { navController.navigate(Routes.EXPENSE_LIST) }
+                    )
+
+                    SpendingChartCard(state.spentByCategory)
                 }
             }
         }
@@ -175,25 +220,54 @@ fun DashboardScreen(
 }
 
 @Composable
-private fun SummaryRow(totalSpent: Double, budget: Double?, settings: com.example.expensetracker.data.model.AppSettings) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        SummaryCard(
-            title = stringResource(R.string.total_spent),
-            value = CurrencyFormatter.format(totalSpent, settings.defaultCurrency),
-            modifier = Modifier.weight(1f),
-            backgroundColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-        val remaining = (budget ?: 0.0) - totalSpent
-        SummaryCard(
-            title = stringResource(R.string.remaining),
-            value = CurrencyFormatter.format(remaining, settings.defaultCurrency),
-            modifier = Modifier.weight(1f),
-            backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
-            valueColor = if (remaining >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-        )
+private fun FinancialSummaryGrid(
+    totalIncome: Double,
+    expenseTotal: Double,
+    billsTotal: Double,
+    totalSpent: Double,
+    budget: Double?,
+    settings: com.example.expensetracker.data.model.AppSettings
+) {
+    val currency = settings.defaultCurrency
+    val remaining = (budget ?: 0.0) - totalSpent
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            SummaryCard(
+                title = "Total Income",
+                value = CurrencyFormatter.format(totalIncome, currency),
+                modifier = Modifier.weight(1f),
+                backgroundColor = MaterialTheme.colorScheme.tertiaryContainer,
+                valueColor = MaterialTheme.colorScheme.onTertiaryContainer
+            )
+            SummaryCard(
+                title = stringResource(R.string.total_spent),
+                value = CurrencyFormatter.format(totalSpent, currency),
+                modifier = Modifier.weight(1f),
+                backgroundColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            SummaryCard(
+                title = "Expenses / Bills",
+                value = "${CurrencyFormatter.format(expenseTotal, currency)} / ${CurrencyFormatter.format(billsTotal, currency)}",
+                modifier = Modifier.weight(1f),
+                backgroundColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+            SummaryCard(
+                title = stringResource(R.string.remaining),
+                value = CurrencyFormatter.format(remaining, currency),
+                modifier = Modifier.weight(1f),
+                backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
+                valueColor = if (remaining >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+            )
+        }
     }
 }
 

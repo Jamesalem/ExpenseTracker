@@ -27,6 +27,8 @@ import com.example.expensetracker.data.local.Migration9to10
 import com.example.expensetracker.data.local.Migration10to11
 import com.example.expensetracker.data.local.Migration11to12
 import com.example.expensetracker.data.local.Migration12to13
+import com.example.expensetracker.data.local.Migration13to14
+import com.example.expensetracker.data.local.Migration14to15
 import com.example.expensetracker.data.repository.BudgetRepository
 import com.example.expensetracker.data.repository.BudgetRepositoryImpl
 import com.example.expensetracker.data.repository.CategoryRepository
@@ -65,7 +67,7 @@ object DatabaseModule {
             .addMigrations(
                 Migration1to2, Migration2to3, Migration3to4, Migration4to5, Migration5to6,
                 Migration6to7, Migration7to8, Migration8to9, Migration9to10, 
-                Migration10to11, Migration11to12, Migration12to13
+                Migration10to11, Migration11to12, Migration12to13, Migration13to14, Migration14to15
             )
             .fallbackToDestructiveMigration(true)
             .build()

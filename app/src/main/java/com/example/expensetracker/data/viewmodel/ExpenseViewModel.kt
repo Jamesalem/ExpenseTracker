@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.expensetracker.R
+import com.example.expensetracker.data.math.NaiveBayesCategorizer
 import com.example.expensetracker.data.model.AppSettings
 import com.example.expensetracker.data.model.Expense
 import com.example.expensetracker.data.repository.ExpenseRepository
@@ -35,6 +36,8 @@ class ExpenseViewModel @Inject constructor(
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
+    private val categorizer = NaiveBayesCategorizer()
+
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
@@ -45,14 +48,17 @@ class ExpenseViewModel @Inject constructor(
             expenseRepo.observeAllExpenses().map { list ->
                 if (query.isBlank()) list
                 else list.filter { 
+                    it.title.contains(query, ignoreCase = true) ||
                     it.category.contains(query, ignoreCase = true) || 
+                    it.account.contains(query, ignoreCase = true) ||
+                    it.tags.contains(query, ignoreCase = true) ||
                     (it.note?.contains(query, ignoreCase = true) ?: false)
                 }
             }
         }
 
     // Targeted flows for the Dashboard
-    val recentExpenses: Flow<List<Expense>> = expenseRepo.observeRecentExpenses(4)
+    val recentExpenses: Flow<List<Expense>> = expenseRepo.observeRecentExpenses(6)
     val totalIncome: Flow<Double> = expenseRepo.observeTotalIncome()
     val totalExpense: Flow<Double> = expenseRepo.observeTotalExpense()
 
@@ -77,16 +83,22 @@ class ExpenseViewModel @Inject constructor(
     // Form state
     data class ExpenseFormState(
         val id: Long = 0,
+        val title: String = "",
         val amount: Double = 0.0,
         val currencyCode: String = "USD",
         val category: String = "",
         val note: String = "",
         val type: Expense.ExpenseType = Expense.ExpenseType.EXPENSE,
+        val account: String = "Cash",
+        val tags: String = "",
         val date: Date = Date()
     )
 
     private val _formState = MutableStateFlow(ExpenseFormState())
     val formState: StateFlow<ExpenseFormState> = _formState.asStateFlow()
+
+    private val _categoryPredictions = MutableStateFlow<List<Pair<String, Double>>>(emptyList())
+    val categoryPredictions: StateFlow<List<Pair<String, Double>>> = _categoryPredictions.asStateFlow()
 
     private val _isEditing = MutableStateFlow(false)
     val isEditing: StateFlow<Boolean> = _isEditing.asStateFlow()
@@ -102,9 +114,15 @@ class ExpenseViewModel @Inject constructor(
                 settings to query
             }.flatMapLatest { (settings, query) ->
                 expenseRepo.observeAllExpenses().map { list ->
+                    // Train Bayesian Categorizer on historical transactions
+                    categorizer.train(list)
+
                     val filtered = if (query.isBlank()) list
                     else list.filter { 
+                        it.title.contains(query, ignoreCase = true) ||
                         it.category.contains(query, ignoreCase = true) || 
+                        it.account.contains(query, ignoreCase = true) ||
+                        it.tags.contains(query, ignoreCase = true) ||
                         (it.note?.contains(query, ignoreCase = true) ?: false)
                     }
                     ExpenseUiState.Success(filtered, settings)
@@ -133,19 +151,29 @@ class ExpenseViewModel @Inject constructor(
         val defaultCurrency =
             (uiState.value as? ExpenseUiState.Success)?.settings?.defaultCurrency ?: "USD"
         _formState.value = ExpenseFormState(currencyCode = defaultCurrency)
+        _categoryPredictions.value = emptyList()
     }
 
     fun initForm(expense: Expense) {
         _isEditing.value = true
         _formState.value = ExpenseFormState(
             id = expense.id,
+            title = expense.title,
             amount = expense.amount,
             currencyCode = expense.currencyCode,
             category = expense.category,
             note = expense.note.orEmpty(),
             type = expense.type,
+            account = expense.account,
+            tags = expense.tags,
             date = Date.from(expense.date.atStartOfDay(ZoneId.systemDefault()).toInstant())
         )
+        _categoryPredictions.value = emptyList()
+    }
+
+    fun updateFormTitle(title: String) {
+        _formState.update { it.copy(title = title) }
+        updatePredictions(title, _formState.value.note)
     }
 
     fun updateFormAmount(amount: Double) =
@@ -160,8 +188,26 @@ class ExpenseViewModel @Inject constructor(
     fun updateFormCategory(category: String) =
         _formState.update { it.copy(category = category) }
 
-    fun updateFormNote(note: String) =
+    fun updateFormAccount(account: String) =
+        _formState.update { it.copy(account = account) }
+
+    fun updateFormTags(tags: String) =
+        _formState.update { it.copy(tags = tags) }
+
+    fun updateFormNote(note: String) {
         _formState.update { it.copy(note = note) }
+        updatePredictions(_formState.value.title, note)
+    }
+
+    private fun updatePredictions(title: String, note: String) {
+        val query = "$title $note".trim()
+        if (query.length >= 2) {
+            val preds = categorizer.predict(query).take(3)
+            _categoryPredictions.value = preds
+        } else {
+            _categoryPredictions.value = emptyList()
+        }
+    }
 
     fun updateFormType(type: Expense.ExpenseType) =
         _formState.update { it.copy(type = type) }
@@ -172,15 +218,19 @@ class ExpenseViewModel @Inject constructor(
             .atZone(ZoneId.systemDefault())
             .toLocalDate()
 
+        val finalTitle = form.title.ifBlank { form.category }
+
         val expense = Expense(
             id = if (_isEditing.value) form.id else 0L,
-            title = form.category,
+            title = finalTitle,
             amount = form.amount,
             date = localDate,
             category = form.category,
             note = form.note.ifBlank { null },
             type = form.type,
-            currencyCode = form.currencyCode
+            currencyCode = form.currencyCode,
+            account = form.account,
+            tags = form.tags
         )
 
         viewModelScope.launch {
@@ -199,6 +249,7 @@ class ExpenseViewModel @Inject constructor(
                     _userMessage.emit(context.getString(messageRes))
                 } else {
                     expenseRepo.insertExpense(expense)
+                    categorizer.addDocument("${expense.title} ${expense.note.orEmpty()}", expense.category)
                     val messageRes = if (expense.type == Expense.ExpenseType.INCOME) R.string.income_added_successfully else R.string.expense_added_successfully
                     _userMessage.emit(context.getString(messageRes))
                 }

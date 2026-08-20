@@ -203,6 +203,24 @@ fun ExpenseEditScreen(
                     textStyle = Typography.bodyLarge
                 )
 
+                // Title
+                OutlinedTextField(
+                    value = form.title,
+                    onValueChange = { vm.updateFormTitle(it) },
+                    label = { Text("Title / Merchant", style = Typography.labelLarge) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = Shapes.large,
+                    textStyle = Typography.bodyLarge
+                )
+
                 // Category
                 OutlinedTextField(
                     value = form.category,
@@ -215,6 +233,33 @@ fun ExpenseEditScreen(
                             tint = MaterialTheme.colorScheme.primary
                         )
                     },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = Shapes.large,
+                    textStyle = Typography.bodyLarge
+                )
+
+                // Account / Wallet Chips
+                val accounts = listOf("Cash", "Bank Account", "Credit Card", "Savings", "Investment")
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Payment Account", style = Typography.labelMedium)
+                    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(accounts.size) { idx ->
+                            val acc = accounts[idx]
+                            FilterChip(
+                                selected = form.account == acc,
+                                onClick = { vm.updateFormAccount(acc) },
+                                label = { Text(acc) }
+                            )
+                        }
+                    }
+                }
+
+                // Tags
+                OutlinedTextField(
+                    value = form.tags,
+                    onValueChange = { vm.updateFormTags(it) },
+                    label = { Text("Tags (e.g. #trip, #freelance)", style = Typography.labelLarge) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = Shapes.large,

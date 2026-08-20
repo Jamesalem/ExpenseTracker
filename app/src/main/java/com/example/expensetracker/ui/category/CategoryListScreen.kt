@@ -36,7 +36,8 @@ import com.example.expensetracker.ui.theme.generateCategoryColor
 @Composable
 fun CategoryListScreen(
     viewModel: CategoryViewModel = hiltViewModel(),
-    onAddCategory: () -> Unit
+    onAddCategory: () -> Unit,
+    onBack: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val categories = (uiState as? CategoryViewModel.CategoryUiState.Success)?.categories.orEmpty()
@@ -64,7 +65,7 @@ fun CategoryListScreen(
             TopAppBar(
                 title = { Text("Manage Categories", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = { /* Navigate back if needed */ }) {
+                    IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
@@ -103,11 +104,15 @@ fun CategoryListScreen(
                                     CategoryHeader("Income Categories")
                                 }
                                 items(incomeCategories, key = { "inc_${it.id}" }) { category ->
-                                    SwipeToDeleteCategory(
-                                        category = category,
-                                        onDelete = { toDelete = category },
-                                        onEdit = { editingCategory = it }
-                                    )
+                                    if (category.isCustom) {
+                                        SwipeToDeleteCategory(
+                                            category = category,
+                                            onDelete = { toDelete = category },
+                                            onEdit = { editingCategory = it }
+                                        )
+                                    } else {
+                                        CategoryItem(category = category, onEdit = { editingCategory = it })
+                                    }
                                 }
                             }
                             
@@ -117,11 +122,15 @@ fun CategoryListScreen(
                                     CategoryHeader("Expense Categories")
                                 }
                                 items(expenseCategories, key = { "exp_${it.id}" }) { category ->
-                                    SwipeToDeleteCategory(
-                                        category = category,
-                                        onDelete = { toDelete = category },
-                                        onEdit = { editingCategory = it }
-                                    )
+                                    if (category.isCustom) {
+                                        SwipeToDeleteCategory(
+                                            category = category,
+                                            onDelete = { toDelete = category },
+                                            onEdit = { editingCategory = it }
+                                        )
+                                    } else {
+                                        CategoryItem(category = category, onEdit = { editingCategory = it })
+                                    }
                                 }
                             }
                         }
@@ -221,7 +230,12 @@ private fun CategoryItem(
     ) {
         Box(Modifier.size(12.dp).clip(CircleShape).background(color))
         Spacer(Modifier.width(16.dp))
-        Text(category.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(category.name, style = MaterialTheme.typography.bodyLarge)
+            if (!category.isCustom) {
+                Text("Default", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+            }
+        }
         IconButton(onClick = { onEdit(category) }, modifier = Modifier.size(32.dp)) {
             Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
         }
